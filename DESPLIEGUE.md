@@ -19,7 +19,8 @@ Requiere la CLI de Supabase (`npx supabase`).
    npx supabase secrets set GOOGLE_MAPS_API_KEY=<clave> GEMINI_API_KEY=<clave>
    ```
 4. En Vercel, importar el repositorio y cargar `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
-   y `VITE_GOOGLE_MAPS_API_KEY`. `vercel.json` hace que las rutas de la app funcionen al recargar.
+   y `VITE_GOOGLE_MAPS_API_KEY`, de tipo **Config**: Vercel no deja guardar variables `VITE_` como Secret.
+   `vercel.json` hace que las rutas de la app funcionen al recargar.
 5. En Supabase, Authentication: poner la URL de Vercel como Site URL y como Redirect URL. Apagar el registro público.
 6. Crear el primer usuario en Authentication y activarlo como administrador, con su `user_id`:
    ```sql
