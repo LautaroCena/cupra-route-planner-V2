@@ -1,5 +1,6 @@
 import { allClients, beginImport } from "../_shared/import-batch.ts";
 import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates, repararCodificacion } from "../_shared/import-values.ts";
+import { agruparLocales, nombresAlternativos, posiblesDuplicados } from "../_shared/etl/locales.ts";
 import { limpiarSinDato, mensajeFreno, MOTIVOS_RECHAZO, revisarVentas, type MotivoRechazo } from "../_shared/etl/ventas.ts";
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
 
@@ -508,7 +509,9 @@ Deno.serve(async (req) => {
     const ventasRaw: any[] = [];
     const clientesMap = new Map<string, any>();
     // Coordenadas reales que vienen en el propio informe de ventas (Latitud/Longitud)
-    const coordsPorCliente = new Map<string, { lat: number; long: number; direccion: string | null; codigo_postal: string | null; ciudad: string | null; provincia: string | null }>();
+    // Todas las coordenadas de cada cliente: después se agrupan en locales.
+    type PuntoCliente = { lat: number; long: number; peso: number; direccion: string | null; codigo_postal: string | null; ciudad: string | null; provincia: string | null };
+    const coordsPorCliente = new Map<string, Map<string, PuntoCliente>>();
     let ventasSinClientId = 0;
     let ventasCuitAmbiguo = 0;
     let facturacionNullCount = 0;
@@ -638,14 +641,12 @@ Deno.serve(async (req) => {
         Number.isFinite(latRaw) && Number.isFinite(lngRaw) &&
         latRaw >= -56 && latRaw <= -21 && lngRaw >= -74 && lngRaw <= -53
       ) {
-        coordsPorCliente.set(client_id, {
-          lat: latRaw,
-          long: lngRaw,
-          direccion,
-          codigo_postal: codigoPostalRaw,
-          ciudad: ciudad_raw,
-          provincia: normalizeProvincia(provincia_raw),
-        });
+        const puntos = coordsPorCliente.get(client_id) || new Map<string, PuntoCliente>();
+        const clave = `${latRaw.toFixed(5)},${lngRaw.toFixed(5)}`;
+        const punto = puntos.get(clave);
+        if (punto) punto.peso += 1;
+        else puntos.set(clave, { lat: latRaw, long: lngRaw, peso: 1, direccion, codigo_postal: codigoPostalRaw, ciudad: ciudad_raw, provincia: normalizeProvincia(provincia_raw) });
+        coordsPorCliente.set(client_id, puntos);
       }
     }
 
@@ -896,7 +897,7 @@ Deno.serve(async (req) => {
           client_id, cuit_dni, razon_social, fantasia,
           barrios: new Set<string>(), comunas: new Set<string>(), ciudades: new Set<string>(),
           provincias: new Set<string>(), direcciones: new Set<string>(), vendedores: new Set<string>(),
-          productos: new Set<string>(), categorias_set: new Set<string>(),
+          productos: new Set<string>(), categorias_set: new Set<string>(), nombres: new Set<string>(),
           telefonos: new Set<string>(), emails: new Set<string>(),
           monto_total: 0,
           // TAREA 1: Set para tickets únicos en vez de contador
@@ -948,6 +949,8 @@ Deno.serve(async (req) => {
         }
       }
 
+      if (razon_social) c.nombres.add(razon_social);
+      if (fantasia) c.nombres.add(fantasia);
       c.razon_social = razon_social || c.razon_social;
       c.fantasia = fantasia || c.fantasia;
     }
@@ -1057,10 +1060,16 @@ Deno.serve(async (req) => {
       results.errores.push(`Filas con CUIT duplicado en el maestro y nombre sin coincidencia: ${ventasCuitAmbiguo}`);
     }
 
-    const places = [...coordsPorCliente.entries()].map(([cid, p]) => ({
-      client_id: cid, lat: p.lat, long: p.long, direccion_principal: p.direccion,
-      codigo_postal: p.codigo_postal, provincia_principal: p.provincia,
-    }));
+    // Coordenadas lejanas del mismo cliente son otro local. El más usado se guarda último y queda principal.
+    let clientesVariosLocales = 0;
+    const places = [...coordsPorCliente.entries()].flatMap(([cid, puntos]) => {
+      const locales = agruparLocales([...puntos.values()]);
+      if (locales.length > 1) clientesVariosLocales++;
+      return locales.map(({ principal: p }) => ({
+        client_id: cid, lat: p.lat, long: p.long, direccion_principal: p.direccion,
+        codigo_postal: p.codigo_postal, provincia_principal: p.provincia,
+      }));
+    });
     const { data: previaRango, error: previewError } = await supabase.rpc('preview_ventas_import', { p_rows: ventasDeduplicadas });
     if (previewError) throw new Error(previewError.message);
     const { data: saved, error: saveError } = await supabase.rpc('guardar_importacion', {
@@ -1071,6 +1080,15 @@ Deno.serve(async (req) => {
     committedResponse = saved;
     Object.assign(results, saved.results);
     results.ventas_errores = filasRechazadas.length;
+
+    // Los otros nombres de un cliente se guardan para poder encontrarlo; no lo cambian.
+    const alias = [...clientesMap.values()]
+      .map(c => ({ client_id: c.client_id, nombres: nombresAlternativos(c.razon_social, c.nombres) }))
+      .filter(a => a.nombres.length);
+    if (alias.length) {
+      const { error: aliasError } = await supabase.rpc('guardar_nombres_alternativos', { p_filas: alias });
+      if (aliasError) console.error('No se pudieron guardar los nombres alternativos:', aliasError.message);
+    }
     const coordenadasGuardadas = saved.results.coordenadas_actualizadas;
     const rangoCarga = { ...(previaRango || {}), ...(saved.rango || {}), modo: replaceExisting ? 'rango' : 'agregar' };
 
@@ -1207,7 +1225,13 @@ Deno.serve(async (req) => {
     const { data: perfiles } = await supabase.from('profiles').select('nombre');
     const clavePersona = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
     const nombresPerfil = new Set((perfiles || []).map((p: any) => clavePersona(p.nombre)));
+    const duplicados = posiblesDuplicados([...clientesMap.values()].map(c => ({
+      client_id: c.client_id, documento: c.cuit_dni, nombres: [...c.nombres],
+    })));
     const validacion = {
+      posibles_duplicados: duplicados.slice(0, 100),
+      clientes_varios_locales: clientesVariosLocales,
+      clientes_con_otros_nombres: alias.length,
       vendedores_sin_usuario: vendedorBreakdown.map(v => v.vendedor).filter(v => v !== 'SIN VENDEDOR' && !nombresPerfil.has(clavePersona(v))),
       clientes_sin_coordenadas: Math.max(0, totalClientesUnicos - coordsPorCliente.size),
       filas_rechazadas: filasRechazadas.length,

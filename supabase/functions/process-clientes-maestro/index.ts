@@ -1,4 +1,5 @@
 import { allClients, beginImport } from "../_shared/import-batch.ts";
+import { limpiarSinDato, normalizarUbicacion } from "../_shared/etl/ventas.ts";
 import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates, repararCodificacion } from "../_shared/import-values.ts";
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
 
@@ -104,10 +105,8 @@ const normalizeCuit = (v: any): string | null => {
     return String(Math.round(v));
   }
   const s = String(v).trim();
-  if (/^-?\d+(\.\d+)?e[+-]?\d+$/i.test(s)) {
-    const n = Number(s);
-    if (Number.isFinite(n)) return String(Math.round(n));
-  }
+  // La notación científica perdió dígitos: no sirve para identificar a nadie.
+  if (/^-?\d+(\.\d+)?e[+-]?\d+$/i.test(s)) return null;
   const digits = s.replace(/\D/g, '');
   return digits || null;
 };
@@ -171,7 +170,7 @@ const splitCategorias = (v: any): string[] => {
   const s = toStr(v);
   if (!s) return [];
   return Array.from(new Set(
-    s.split(/[/|,;]/).map((x) => x.trim().toUpperCase()).filter((x) => x.length > 0)
+    s.split(/[/|,;]/).map((x) => x.trim().toUpperCase()).filter((x) => x.length > 0 && limpiarSinDato(x) !== null)
   ));
 };
 
@@ -222,6 +221,7 @@ function parseRow(row: Record<string, any>): MaestroRow {
 
   const emails = [toStr(getFieldValue(row, ['Correo', 'correo', 'Email', 'email', 'E-mail']))].filter(Boolean) as string[];
 
+  const ubicacion = normalizarUbicacion(getFieldValue(row, ['Provincia', 'provincia']), getFieldValue(row, ['Ciudad', 'ciudad', 'Localidad']));
   return {
     client_id,
     cuit_dni,
@@ -229,8 +229,8 @@ function parseRow(row: Record<string, any>): MaestroRow {
     fantasia,
     direccion,
     codigo_postal,
-    ciudad: toStr(getFieldValue(row, ['Ciudad', 'ciudad', 'Localidad'])),
-    provincia: toStr(getFieldValue(row, ['Provincia', 'provincia'])),
+    ciudad: ubicacion.ciudad,
+    provincia: ubicacion.provincia,
     telefonos: Array.from(new Set(telefonos)),
     emails: Array.from(new Set(emails)),
     etiquetas: splitCategorias(getFieldValue(row, ['Categorías', 'Categorias', 'Categorías Cliente', 'Categorias Cliente'])),

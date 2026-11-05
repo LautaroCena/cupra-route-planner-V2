@@ -225,6 +225,9 @@ const CargaDatos = () => {
     avisos: ResumenAviso[];
     vendedores_sin_usuario: string[];
     clientes_sin_coordenadas: number;
+    posibles_duplicados?: { nombre: string; clientes: { client_id: string; documento: string | null }[] }[];
+    clientes_varios_locales?: number;
+    clientes_con_otros_nombres?: number;
   } | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeType, setGeocodeType] = useState<"clientes" | "prospectos">("clientes");
@@ -957,6 +960,22 @@ const CargaDatos = () => {
                     <p key={a.tipo} className="text-muted-foreground">Aviso · {a.texto}: {a.cantidad.toLocaleString()}</p>
                   ))}
                   <p className="text-muted-foreground">Clientes sin coordenadas: {validacion.clientes_sin_coordenadas.toLocaleString()}</p>
+                  {Boolean(validacion.clientes_varios_locales) && (
+                    <p className="text-muted-foreground">Clientes con más de un local: {validacion.clientes_varios_locales}. Se guardan todos; el más usado queda como principal.</p>
+                  )}
+                  {Boolean(validacion.clientes_con_otros_nombres) && (
+                    <p className="text-muted-foreground">Clientes que aparecen con otro nombre: {validacion.clientes_con_otros_nombres}. Se guardan los nombres para poder encontrarlos.</p>
+                  )}
+                  {Boolean(validacion.posibles_duplicados?.length) && (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 space-y-1">
+                      <p className="font-medium text-foreground">Posibles duplicados para revisar ({validacion.posibles_duplicados!.length}). No se unieron.</p>
+                      <ul className="max-h-40 overflow-y-auto space-y-0.5 text-muted-foreground">
+                        {validacion.posibles_duplicados!.map((d) => (
+                          <li key={d.clientes.map((c) => c.client_id).join("|")}>• {toTitleCase(d.nombre)}: {d.clientes.map((c) => c.documento || c.client_id).join(" · ")}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   {validacion.vendedores_sin_usuario.length > 0 && (
                     <p className="text-muted-foreground">Vendedores sin usuario en la app: {validacion.vendedores_sin_usuario.map(toTitleCase).join(", ")}</p>
                   )}
