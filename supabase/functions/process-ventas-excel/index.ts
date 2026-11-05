@@ -522,15 +522,29 @@ Deno.serve(async (req) => {
     // misma razón social cuando no hay CUIT) deben caer en el mismo client_id.
     const localCuitToId = new Map<string, string>();
     const localNameToId = new Map<string, string>();
+    // Una línea sin CUIT toma el de otra línea del archivo con el mismo nombre exacto,
+    // si ese nombre tiene un único CUIT. Si tiene varios, no se adivina.
+    const cuitPorNombre = new Map<string, string | null>();
+    for (const row of rows) {
+      const cuit = normalizeCuit(getFieldValue(row, ['CUIT / DNI', 'CUIT/DNI', 'CUIT DNI', 'cuit_dni']));
+      if (!cuit) continue;
+      for (const nombre of [getFieldValue(row, ['Razón Social', 'Razon Social', 'razon_social']), getFieldValue(row, ['Fantasía', 'Fantasia', 'fantasia'])]) {
+        const clave = normalizeBusinessName(nombre);
+        if (!clave) continue;
+        const previo = cuitPorNombre.get(clave);
+        cuitPorNombre.set(clave, previo === undefined || previo === cuit ? cuit : null);
+      }
+    }
 
     // Resolución de identidad reutilizable: la usan la hoja de producto y la de
     // comprobantes, para que ambas caigan exactamente en el mismo client_id.
     const resolverIdentidad = (row: Record<string, any>) => {
       const externalClientId = normalizeClientId(getFieldValue(row, ['client_id', 'Número Externo', 'Numero Externo']));
-      const cuit_dni = normalizeCuit(getFieldValue(row, ['CUIT / DNI', 'CUIT/DNI', 'CUIT DNI', 'cuit_dni']));
       const razon_social = toStr(getFieldValue(row, ['Razón Social', 'Razon Social', 'razon_social']));
       const fantasia = toStr(getFieldValue(row, ['Fantasía', 'Fantasia', 'fantasia']));
       const nameKey = normalizeBusinessName(razon_social) || normalizeBusinessName(fantasia) || null;
+      const cuit_dni = normalizeCuit(getFieldValue(row, ['CUIT / DNI', 'CUIT/DNI', 'CUIT DNI', 'cuit_dni']))
+        || (nameKey ? cuitPorNombre.get(nameKey) ?? null : null);
       const nameMatch = nameToClientId.get(normalizeBusinessName(razon_social) || '')
         || nameToClientId.get(normalizeBusinessName(fantasia) || '');
       const cuitMatches = cuit_dni ? (cuitToClientIds.get(cuit_dni) || []) : [];

@@ -964,7 +964,7 @@ const CargaDatos = () => {
                     <p className="text-muted-foreground">Clientes con más de un local: {validacion.clientes_varios_locales}. Se guardan todos; el más usado queda como principal.</p>
                   )}
                   {Boolean(validacion.clientes_con_otros_nombres) && (
-                    <p className="text-muted-foreground">Clientes que aparecen con otro nombre: {validacion.clientes_con_otros_nombres}. Se guardan los nombres para poder encontrarlos.</p>
+                    <p className="text-muted-foreground">Clientes con nombre de fantasía u otro nombre: {validacion.clientes_con_otros_nombres}. Se guardan para poder encontrarlos.</p>
                   )}
                   {Boolean(validacion.posibles_duplicados?.length) && (
                     <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 space-y-1">

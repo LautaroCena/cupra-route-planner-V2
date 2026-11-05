@@ -161,6 +161,17 @@ test('importe desconocido no es $0, Operador no es vendedor y las líneas NC res
   } finally { await h.close(); }
 });
 
+test('una línea sin CUIT con el mismo nombre que otra del archivo es el mismo cliente', {timeout:60000}, async () => {
+  const h=await harness();
+  try {
+    const {status,body}=await h.raw([linea({Ticket:'FV1'}),linea({Ticket:'FV2','CUIT / DNI':null}),linea({Ticket:'FV3','CUIT / DNI':null,'Razón Social':'Otro Comercio'})]);
+    assert.equal(status,200,body.error);
+    const {rows}=await h.db.query('SELECT client_id FROM clientes ORDER BY client_id');
+    assert.deepEqual(rows.map(r=>r.client_id),[CUIT,'RS_OTRO COMERCIO']);
+    assert.equal(body.validacion.posibles_duplicados.length,0);
+  } finally { await h.close(); }
+});
+
 test('handler de ventas: archivo completo, importes conservados y reintentos sin duplicados', {timeout:90000}, async () => {
   let rows;
   if(process.env.CUPRA_IMPORT_TEST_FILE) {
