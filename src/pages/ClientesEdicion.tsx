@@ -220,10 +220,10 @@ const ClientesEdicion = () => {
     setSaving(true);
     try {
       // SOLO permitir estos campos
-      const allowedFields = ['telefonos', 'emails', 'vendedor_actual'];
+      const allowedFields = ['telefonos', 'emails', 'vendedor_actual', 'excluir_recomendaciones', 'motivo_exclusion'];
       const sanitizedChanges = Object.fromEntries(
         Object.entries(changes).filter(([key]) => allowedFields.includes(key))
-      ) as Partial<Pick<Tables<'clientes'>, 'telefonos' | 'emails' | 'vendedor_actual'>>;
+      ) as Partial<Pick<Tables<'clientes'>, 'telefonos' | 'emails' | 'vendedor_actual' | 'excluir_recomendaciones' | 'motivo_exclusion'>>;
       
       const { error } = await supabase
         .from('clientes')

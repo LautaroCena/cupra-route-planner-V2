@@ -5,7 +5,9 @@ import {
   diasDesdeUltimaCompra,
   estadoPorDias,
   excluidoPorFeedback,
+  exclusionPorFeedback,
   hoyArgentina,
+  volverDesde,
   origenProspecto,
   parseEstados,
   tiposGoogleParaRubros,
@@ -53,6 +55,37 @@ Deno.test("feedback: definitivo aparta siempre", () => {
   assert(excluidoPorFeedback([{ feedback: "No volver, no le interesa", created_at: hace300 }], NOW));
   assert(excluidoPorFeedback([{ feedback: "Cerró definitivamente el local" }], NOW));
   assertFalse(excluidoPorFeedback([{ feedback: "Compró 3 cajas, volver en 2 semanas" }], NOW));
+});
+
+Deno.test("feedback: manda el comentario más reciente", () => {
+  const hace = (d: number) => new Date(NOW.getTime() - d * 86400000).toISOString();
+  // Un "no volver" viejo no pesa si después hubo otra visita.
+  assertFalse(excluidoPorFeedback([
+    { feedback: "No volver, no le interesa", created_at: hace(200) },
+    { feedback: "Compró 2 cajas", created_at: hace(20) },
+  ], NOW));
+  // El orden en que llegan no importa.
+  assert(excluidoPorFeedback([
+    { feedback: "Compró 2 cajas", created_at: hace(200) },
+    { feedback: "No volver, no le interesa", created_at: hace(20) },
+  ], NOW));
+  assertFalse(excluidoPorFeedback([
+    { motivo_no_visita: "Cerrado definitivo", created_at: hace(100) },
+    { feedback: "Reabrió con otro dueño, reactivar", created_at: hace(5) },
+  ], NOW));
+});
+
+Deno.test("feedback: 'no volver hasta' aparta solo hasta esa fecha", () => {
+  // NOW = 23/09/2026. Comentado en marzo: "hasta mayo" ya pasó.
+  assertFalse(excluidoPorFeedback([{ feedback: "El dueño está de viaje, no volver hasta mayo", created_at: "2026-03-10T12:00:00Z" }], NOW));
+  const r = exclusionPorFeedback([{ feedback: "no volver hasta diciembre", created_at: "2026-09-01T12:00:00Z" }], NOW);
+  assertEquals(r, { excluido: true, hasta: "2026-12-01" });
+  // Comentado en noviembre, "hasta marzo" es el del año siguiente.
+  assertEquals(volverDesde("no volver hasta marzo", new Date("2025-11-10T12:00:00Z"))?.toISOString().slice(0, 10), "2026-03-01");
+  assertEquals(volverDesde("no volver hasta el 15/10", new Date("2026-09-01T12:00:00Z"))?.toISOString().slice(0, 10), "2026-10-15");
+  // Sin fecha reconocible, es definitivo.
+  assertEquals(volverDesde("no volver hasta que llame", new Date()), null);
+  assert(excluidoPorFeedback([{ feedback: "no volver hasta que llame", created_at: "2026-01-01T12:00:00Z" }], NOW));
 });
 
 Deno.test("vendedor: nunca por substring (MARIANA no es ANA)", () => {

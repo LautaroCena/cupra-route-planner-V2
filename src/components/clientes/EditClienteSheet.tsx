@@ -282,7 +282,7 @@ export const EditClienteSheet = ({
             <div className="bg-muted/30 rounded-lg p-4 border border-dashed space-y-3">
               <div className="flex items-center gap-3">
                 <Checkbox 
-                  checked={cliente.requiere_visita === "Si"} 
+                  checked={(cliente.requiere_visita || "").toUpperCase() === "SI"}
                   disabled 
                   className="opacity-60"
                 />
@@ -302,8 +302,19 @@ export const EditClienteSheet = ({
                   <p className="text-sm text-muted-foreground">{cliente.motivo_exclusion}</p>
                 </div>
               )}
+              {cliente.excluir_recomendaciones && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={saving}
+                  onClick={() => onSave({ excluir_recomendaciones: false, motivo_exclusion: null })}
+                >
+                  Reactivar: volver a recomendarlo
+                </Button>
+              )}
               <p className="text-xs text-muted-foreground italic">
-                Estos campos son gestionados por automatizaciones
+                Un comentario que diga "reactivar" también lo vuelve a habilitar.
               </p>
             </div>
           </div>

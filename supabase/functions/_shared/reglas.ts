@@ -51,22 +51,68 @@ export interface FeedbackLike {
   created_at?: string | null;
 }
 
+/** Frases que vuelven a habilitar un negocio apartado. */
+const REACTIVAR = [/reactivar/, /volver a visitar/, /se puede volver/, /reabri/, /abrio de nuevo/, /volvio a abrir/];
+
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
 /**
- * ¿El feedback del vendedor aparta a este negocio de la ruta de hoy?
- * - Definitivo ("Cerrado definitivo", "no volver"...) → siempre.
- * - "Cerrado" temporal → solo si fue en los últimos 7 días.
- * Antes cualquier texto con "cerrado" lo excluía para siempre.
+ * "no volver hasta mayo" o "no volver hasta el 15/5": la fecha desde la que se puede volver.
+ * Siempre la próxima después del comentario. Sin fecha reconocible, null.
  */
-export function excluidoPorFeedback(feedbacks: FeedbackLike[], now: Date = new Date()): boolean {
-  for (const fb of feedbacks || []) {
-    const texto = sinAcentos(`${fb.feedback || ""} | ${fb.motivo_no_visita || ""}`);
-    if (EXCLUSION_DEFINITIVA.some((re) => re.test(texto))) return true;
-    if (/\bcerrad[oa]\b/.test(texto)) {
-      const t = fb.created_at ? Date.parse(fb.created_at) : NaN;
-      if (Number.isFinite(t) && now.getTime() - t < DIAS_EXCLUSION_CERRADO_TEMPORAL * MS_DIA) return true;
+export function volverDesde(texto: string, comentario: Date): Date | null {
+  const t = sinAcentos(texto);
+  const hasta = t.match(/hasta (?:el |la |principios de |mediados de |fin(?:es)? de )?(.+)/)?.[1];
+  if (!hasta) return null;
+  const proxima = (mes: number, dia: number) => {
+    const anio = comentario.getUTCFullYear();
+    const f = new Date(Date.UTC(anio, mes, dia));
+    return f > comentario ? f : new Date(Date.UTC(anio + 1, mes, dia));
+  };
+  const numerica = hasta.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?/);
+  if (numerica) {
+    const [dia, mes] = [Number(numerica[1]), Number(numerica[2]) - 1];
+    if (mes < 0 || mes > 11 || dia < 1 || dia > 31) return null;
+    if (numerica[3]) {
+      const anio = Number(numerica[3]) < 100 ? 2000 + Number(numerica[3]) : Number(numerica[3]);
+      return new Date(Date.UTC(anio, mes, dia));
     }
+    return proxima(mes, dia);
   }
-  return false;
+  const mes = MESES.findIndex((m) => hasta.startsWith(m));
+  return mes >= 0 ? proxima(mes, 1) : null;
+}
+
+export type Exclusion = { excluido: boolean; hasta?: string };
+
+/**
+ * ¿El último comentario del vendedor aparta a este negocio de la ruta de hoy?
+ * Manda solo el más reciente: un "no volver" viejo no pesa si después hubo otra visita
+ * o un "reactivar".
+ * - "no volver hasta mayo" → apartado hasta esa fecha.
+ * - Definitivo ("Cerrado definitivo", "no volver"...) → apartado hasta que alguien comente otra cosa.
+ * - "Cerrado" suelto (ese día estaba cerrado) → solo 7 días.
+ */
+export function exclusionPorFeedback(feedbacks: FeedbackLike[], now: Date = new Date()): Exclusion {
+  const ultimo = [...(feedbacks || [])].sort((a, b) =>
+    (b.created_at ? Date.parse(b.created_at) : 0) - (a.created_at ? Date.parse(a.created_at) : 0))[0];
+  if (!ultimo) return { excluido: false };
+  const texto = sinAcentos(`${ultimo.feedback || ""} | ${ultimo.motivo_no_visita || ""}`);
+  if (REACTIVAR.some((re) => re.test(texto))) return { excluido: false };
+  const fecha = ultimo.created_at ? new Date(ultimo.created_at) : null;
+  if (/no volver/.test(texto) && fecha && Number.isFinite(fecha.getTime())) {
+    const desde = volverDesde(texto, fecha);
+    if (desde) return desde > now ? { excluido: true, hasta: desde.toISOString().slice(0, 10) } : { excluido: false };
+  }
+  if (EXCLUSION_DEFINITIVA.some((re) => re.test(texto))) return { excluido: true };
+  if (/\bcerrad[oa]\b/.test(texto) && fecha && now.getTime() - fecha.getTime() < DIAS_EXCLUSION_CERRADO_TEMPORAL * MS_DIA) {
+    return { excluido: true, hasta: new Date(fecha.getTime() + DIAS_EXCLUSION_CERRADO_TEMPORAL * MS_DIA).toISOString().slice(0, 10) };
+  }
+  return { excluido: false };
+}
+
+export function excluidoPorFeedback(feedbacks: FeedbackLike[], now: Date = new Date()): boolean {
+  return exclusionPorFeedback(feedbacks, now).excluido;
 }
 
 // ------------------------------------------------------------
