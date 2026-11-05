@@ -32,7 +32,7 @@ export interface GeocodingResponse {
 }
 
 /**
- * Geocodifica una dirección vía la función backend (gateway de Google Maps).
+ * Geocodifica una dirección vía la función backend (Google Maps).
  */
 export async function geocodeAddress(request: GeocodingRequest): Promise<GeocodingResponse> {
   try {

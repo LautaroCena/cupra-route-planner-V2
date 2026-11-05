@@ -1,4 +1,4 @@
-project_id = "ofwhxaglbcgyksauwjby"
+project_id = "cupra-route-planner-v2"
 
 [functions.generate-recommendations]
 verify_jwt = false

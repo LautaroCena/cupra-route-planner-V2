@@ -66,7 +66,7 @@ function hoyArgentina(): string {
   return new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-async function extraer(texto: string, _apiKey: string): Promise<Record<string, unknown> | null> {
+async function extraer(texto: string): Promise<Record<string, unknown> | null> {
   const res = await aiChat({
     model: MODEL,
     messages: [
@@ -104,7 +104,6 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response(null, { status: 405, headers: corsHeaders });
 
   try {
-    const apiKey = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
     const { db: supabase, user, profile } = await authorize(req, false);
 
     const body = await req.json().catch(() => ({}));
@@ -150,7 +149,7 @@ Deno.serve(async (req) => {
     let procesados = 0;
     for (const fb of pendientes) {
       const texto = [fb.feedback, fb.motivo_no_visita].filter(Boolean).join(" | ");
-      const datos = await extraer(texto, apiKey || "");
+      const datos = await extraer(texto);
       if (!datos) continue;
 
       const dias = Number(datos.revisit_dias);

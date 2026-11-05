@@ -3,12 +3,11 @@ import { buscarLugaresCercanos } from "../_shared/google-maps.ts";
 const opciones={lat:-34.5,lng:-58.5,radioKm:1.5,tipos:['bar'],objetivo:1};
 async function conMock(respuestas: Response[], fn:()=>Promise<void>) {
   const fetchOriginal=globalThis.fetch;
-  const clave=Deno.env.get('GOOGLE_MAPS_API_KEY'), gateway=Deno.env.get('LOVABLE_API_KEY');
-  Deno.env.set('GOOGLE_MAPS_API_KEY','prueba-local');Deno.env.delete('LOVABLE_API_KEY');
+  const clave=Deno.env.get('GOOGLE_MAPS_API_KEY');
+  Deno.env.set('GOOGLE_MAPS_API_KEY','prueba-local');
   globalThis.fetch=()=>Promise.resolve(respuestas.shift() || Response.json({places:[]}));
   try{await fn();}finally{globalThis.fetch=fetchOriginal;
     if(clave===undefined)Deno.env.delete('GOOGLE_MAPS_API_KEY');else Deno.env.set('GOOGLE_MAPS_API_KEY',clave);
-    if(gateway===undefined)Deno.env.delete('LOVABLE_API_KEY');else Deno.env.set('LOVABLE_API_KEY',gateway);
   }
 }
 Deno.test('Google reintenta 429 y contabiliza el reintento en el presupuesto',async()=>{

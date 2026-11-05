@@ -1,9 +1,6 @@
 // Clave pública de navegador para Google Maps.
 // Solo claves de navegador, restringidas por dominio en Google Cloud.
-export const GOOGLE_MAPS_BROWSER_KEY: string =
-  import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY ||
-  import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
-  "";
+export const GOOGLE_MAPS_BROWSER_KEY: string = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
 let loaderPromise: Promise<void> | null = null;
 export const MAP_ERROR_EVENT = "cupra-google-maps-error";
@@ -17,7 +14,7 @@ const LOAD_TIMEOUT_MS = 15_000;
 export function describeMapsFailure(reason: string | null): string {
   switch (reason) {
     case "RefererNotAllowedMapError":
-      return "Google Maps no autoriza esta dirección web. Abrí la app desde cupra-route-planner.lovable.app.";
+      return "Google Maps no autoriza esta dirección web. Revisá las restricciones de la clave en Google Cloud.";
     case "OverQuotaMapError":
       return "Se alcanzó el límite de uso de Google Maps. Reintentá en unos minutos.";
     case "ApiNotActivatedMapError":
@@ -119,8 +116,6 @@ export function loadGoogleMaps(apiKey: string = GOOGLE_MAPS_BROWSER_KEY): Promis
       callback: CALLBACK_NAME,
       v: "weekly",
     });
-    const trackingId = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
-    if (trackingId) params.set("channel", trackingId);
     script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
     script.async = true;
     script.dataset.googleMaps = "true";

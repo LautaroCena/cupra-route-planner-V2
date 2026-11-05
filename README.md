@@ -34,6 +34,5 @@ Las pruebas usan datos sintéticos. GitHub Actions ejecuta la misma validación.
 - [Arquitectura y contratos](./DOCUMENTACION_TECNICA.md)
 - [Publicación y verificación](./DESPLIEGUE.md)
 
-El proyecto existente usa [Lovable](https://lovable.dev/projects/4edb6182-f643-40b4-b2af-197de983701b)
-y Supabase. Las migraciones históricas forman parte del registro de la base;
-las instrucciones de publicación indican cómo aplicar solamente las pendientes.
+La aplicación se publica en Vercel y usa un proyecto propio de Supabase. Las
+migraciones corren desde una base vacía; hay una prueba que lo comprueba.

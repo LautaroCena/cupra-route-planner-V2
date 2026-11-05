@@ -1,8 +1,8 @@
 # Arquitectura y contratos
 
 React 18, TypeScript y Vite componen la interfaz. Supabase aporta Auth,
-PostgreSQL con RLS y Edge Functions en Deno. Lovable publica la aplicación
-sincronizada con GitHub. Google Maps resuelve lugares, geocodificación y
+PostgreSQL con RLS y Edge Functions en Deno. Vercel publica la aplicación
+desde GitHub. Google Maps resuelve lugares, geocodificación y
 recorridos; la IA redacta explicaciones a partir de resultados calculados.
 
 ## Módulos principales

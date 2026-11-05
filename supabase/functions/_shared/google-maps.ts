@@ -1,9 +1,7 @@
-// Cliente de Google Maps con conexión directa y respaldo del gateway configurado.
-
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_maps";
+// Cliente de Google Maps: conexión directa con la clave de servidor.
 
 export function googleMapsKey(): string {
-  return Deno.env.get("GOOGLE_MAPS_API_KEY") || Deno.env.get("VITE_GOOGLE_MAPS_API_KEY") || "";
+  return Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
 }
 
 export function hayGoogleMaps(): boolean {
@@ -22,7 +20,7 @@ function directUrl(path: string, key: string): { url: string; headers: Record<st
 }
 
 /** 400 de Places (New) por clave inválida o vencida. */
-export function esClaveInvalida(status: number, body: any): boolean {
+function esClaveInvalida(status: number, body: any): boolean {
   if (status !== 400) return false;
   const texto = JSON.stringify(body?.error || body || "");
   return /API_KEY_INVALID|API key not valid|API key expired/i.test(texto);
@@ -32,29 +30,12 @@ export async function googleMapsFetch(path: string, init: RequestInit = {}): Pro
   const key = googleMapsKey();
   if (!key) throw new Error("Falta GOOGLE_MAPS_API_KEY en los secretos de Supabase.");
   const baseHeaders = Object.fromEntries(new Headers(init.headers).entries());
-  const signal = init.signal ?? AbortSignal.timeout(12_000);
-
   const direct = directUrl(path, key);
-  const res = await fetch(direct.url, { ...init, signal, headers: { ...baseHeaders, ...direct.headers } });
-
-  const gatewayKey = Deno.env.get("LOVABLE_API_KEY") || "";
-  let rechazada = res.status === 401 || res.status === 403;
-  if (!rechazada && gatewayKey && (res.status === 400 || path.startsWith("/maps/api/"))) {
-    // Places (New) rechaza una clave inválida con 400 API_KEY_INVALID; los web services
-    // clásicos (Geocoding) con HTTP 200 + REQUEST_DENIED.
-    const peek = await res.clone().json().catch(() => null);
-    rechazada = peek?.status === "REQUEST_DENIED" || esClaveInvalida(res.status, peek);
-  }
-  if (rechazada && gatewayKey) {
-    // Clave del conector de Lovable (no es una clave de Google válida para llamada directa).
-    await res.body?.cancel();
-    return fetch(`${GATEWAY_URL}${path}`, {
-      ...init,
-      signal,
-      headers: { ...baseHeaders, Authorization: `Bearer ${gatewayKey}`, "X-Connection-Api-Key": key },
-    });
-  }
-  return res;
+  return fetch(direct.url, {
+    ...init,
+    signal: init.signal ?? AbortSignal.timeout(12_000),
+    headers: { ...baseHeaders, ...direct.headers },
+  });
 }
 
 // ------------------------------------------------------------

@@ -58,7 +58,7 @@ function PrivacyContent() {
       </p>
       <h2>Proveedores</h2>
       <p>
-        La plataforma utiliza servicios de infraestructura y publicación de Supabase y Lovable. Algunas funciones utilizan Google Maps
+        La plataforma utiliza servicios de infraestructura y publicación de Supabase y Vercel. Algunas funciones utilizan Google Maps
         Platform. El uso de contenido y servicios de Google Maps también está sujeto a los
         {" "}<a href={googleTermsUrl} target="_blank" rel="noreferrer">Términos de Google Maps</a> y a la
         {" "}<a href={googlePrivacyUrl} target="_blank" rel="noreferrer">Política de Privacidad de Google</a>.

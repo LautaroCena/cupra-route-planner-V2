@@ -27,6 +27,7 @@ GRANT ALL ON public.prospect_discovery_queue TO service_role;
 ALTER TABLE public.prospect_discovery_queue ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Asignadores pueden ver cola de prospectos" ON public.prospect_discovery_queue;
+DROP POLICY IF EXISTS "Asignadores pueden ver cola de prospectos" ON public.prospect_discovery_queue;
 CREATE POLICY "Asignadores pueden ver cola de prospectos"
   ON public.prospect_discovery_queue
   FOR SELECT
@@ -41,19 +42,23 @@ CREATE TRIGGER update_prospect_discovery_queue_updated_at
 
 DROP POLICY IF EXISTS "Service role acceso completo prospectos" ON public.prospectos;
 DROP POLICY IF EXISTS "Usuarios autenticados pueden ver prospectos" ON public.prospectos;
+DROP POLICY IF EXISTS "Usuarios autenticados reales pueden ver prospectos" ON public.prospectos;
 
+DROP POLICY IF EXISTS "Usuarios autenticados reales pueden ver prospectos" ON public.prospectos;
 CREATE POLICY "Usuarios autenticados reales pueden ver prospectos"
   ON public.prospectos
   FOR SELECT
   TO authenticated
   USING (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS "Usuarios autenticados pueden crear prospectos manuales" ON public.prospectos;
 CREATE POLICY "Usuarios autenticados pueden crear prospectos manuales"
   ON public.prospectos
   FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS "Service role real acceso completo prospectos" ON public.prospectos;
 CREATE POLICY "Service role real acceso completo prospectos"
   ON public.prospectos
   FOR ALL
@@ -129,12 +134,14 @@ DROP POLICY IF EXISTS "Asignadores can update all profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Usuarios ven su propio perfil" ON public.profiles;
 DROP POLICY IF EXISTS "Asignadores activos gestionan perfiles" ON public.profiles;
 
+DROP POLICY IF EXISTS "Usuarios ven su propio perfil" ON public.profiles;
 CREATE POLICY "Usuarios ven su propio perfil"
   ON public.profiles
   FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Asignadores activos gestionan perfiles" ON public.profiles;
 CREATE POLICY "Asignadores activos gestionan perfiles"
   ON public.profiles
   FOR ALL
@@ -142,6 +149,7 @@ CREATE POLICY "Asignadores activos gestionan perfiles"
   USING (public.is_active_assignor(auth.uid()))
   WITH CHECK (public.is_active_assignor(auth.uid()));
 
+DROP POLICY IF EXISTS "Solo usuarios activos acceden a prospectos" ON public.prospectos;
 DROP POLICY IF EXISTS "Solo usuarios activos acceden a prospectos" ON public.prospectos;
 CREATE POLICY "Solo usuarios activos acceden a prospectos"
   ON public.prospectos
@@ -151,6 +159,7 @@ CREATE POLICY "Solo usuarios activos acceden a prospectos"
   USING (public.is_active_user(auth.uid()))
   WITH CHECK (public.is_active_user(auth.uid()));
 
+DROP POLICY IF EXISTS "Solo asignadores activos acceden a cola de prospectos" ON public.prospect_discovery_queue;
 DROP POLICY IF EXISTS "Solo asignadores activos acceden a cola de prospectos" ON public.prospect_discovery_queue;
 CREATE POLICY "Solo asignadores activos acceden a cola de prospectos"
   ON public.prospect_discovery_queue

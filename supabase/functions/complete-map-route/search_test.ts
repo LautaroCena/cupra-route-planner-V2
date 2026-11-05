@@ -85,14 +85,14 @@ Deno.test('mapa: no interpreta coordenadas vacías ni comercios extranjeros como
   eq(hotel?.rubro,'Hotel');eq(typeof hotel?.ciudad,'string');eq(typeof hotel?.provincia,'string');
 });
 Deno.test('Google mapa: usa círculo del centro, orden por distancia y consulta hoteles',async()=>{
-  const oldFetch=globalThis.fetch;const key=Deno.env.get('GOOGLE_MAPS_API_KEY');const gateway=Deno.env.get('LOVABLE_API_KEY');
+  const oldFetch=globalThis.fetch;const key=Deno.env.get('GOOGLE_MAPS_API_KEY');
   const bodies:any[]=[];
-  Deno.env.set('GOOGLE_MAPS_API_KEY','test-map-key');Deno.env.delete('LOVABLE_API_KEY');
+  Deno.env.set('GOOGLE_MAPS_API_KEY','test-map-key');
   globalThis.fetch=async(_input,init)=>{bodies.push(JSON.parse(String(init?.body)));return Response.json({places:[{id:'g',displayName:{text:'Hotel'},location:{latitude:-34.6,longitude:-58.4},primaryType:'hotel',types:['hotel'],rating:4.5,userRatingCount:20}]});};
   try {const rows=await descubrirProspectosMapa(center,.15,['hotel','restaurant'],Date.now()+2000);eq(rows.length,2);eq(bodies.length,2);
     for(const b of bodies){eq(b.rankPreference,'DISTANCE');same(b.locationRestriction.circle,{center:{latitude:-34.6,longitude:-58.4},radius:150});}
     ok(bodies.some(b=>b.includedTypes[0]==='hotel'));
-  } finally{globalThis.fetch=oldFetch;if(key===undefined)Deno.env.delete('GOOGLE_MAPS_API_KEY');else Deno.env.set('GOOGLE_MAPS_API_KEY',key);if(gateway!==undefined)Deno.env.set('LOVABLE_API_KEY',gateway);}
+  } finally{globalThis.fetch=oldFetch;if(key===undefined)Deno.env.delete('GOOGLE_MAPS_API_KEY');else Deno.env.set('GOOGLE_MAPS_API_KEY',key);}
 });
 Deno.test('mapa: rechaza una selección distante antes de gastar consultas Google',async()=>{
   let calls=0;await rejects(()=>buscarComplementoMapa({...opts(),clientes:[client('a'),client('b',5000)],descubrir:async()=>{calls++;return [];}}),/1,5 km/);eq(calls,0);

@@ -11,7 +11,7 @@ CREATE TABLE public.clientes_unificados (
   days_since_last_purchase integer,
   participacion numeric(8,4),
   score_volumen integer,
-  score_recencia integer
+  score_recencia integer,
   score_comercial integer,
   score_volumen_num integer,
   score_recencia_num integer,

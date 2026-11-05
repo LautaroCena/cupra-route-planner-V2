@@ -25,21 +25,19 @@ Deno.test("caminata: sin datos del proveedor no inventa kilómetros ni minutos",
   }finally{globalThis.fetch=fetchOriginal;if(key===undefined)Deno.env.delete("GOOGLE_MAPS_API_KEY");else Deno.env.set("GOOGLE_MAPS_API_KEY",key);}
 });
 
-Deno.test("caminata: usa el servicio Routes del gateway si la clave pertenece al conector",async()=>{
-  const fetchOriginal=globalThis.fetch,key=Deno.env.get("GOOGLE_MAPS_API_KEY"),gateway=Deno.env.get("LOVABLE_API_KEY");
-  Deno.env.set("GOOGLE_MAPS_API_KEY","conector");Deno.env.set("LOVABLE_API_KEY","gateway");
+Deno.test("caminata: si Google rechaza la clave no reintenta por otro camino y avisa",async()=>{
+  const fetchOriginal=globalThis.fetch,key=Deno.env.get("GOOGLE_MAPS_API_KEY");
+  Deno.env.set("GOOGLE_MAPS_API_KEY","invalida");
   const urls:string[]=[];
   globalThis.fetch=async(input)=>{
     urls.push(String(input));
-    if(urls.length===1)return Response.json({error:{message:"API key not valid"}},{status:400});
-    return Response.json({routes:[{legs:Array.from({length:7},()=>({distanceMeters:110,duration:"90.5s"}))}]});
+    return Response.json({error:{message:"API key not valid"}},{status:400});
   };
   try {
-    const r=await calcularCaminata(puntos);assert.equal(r.verificada,true);assert.equal(r.metros,770);assert.equal(r.minutos,11);
-    assert.equal(urls.length,2);assert.equal(urls[1],"https://connector-gateway.lovable.dev/google_maps/routes/directions/v2:computeRoutes");
+    const r=await calcularCaminata(puntos);assert.equal(r.verificada,false);assert.equal(r.metros,null);
+    assert.equal(urls.length,1);assert.equal(urls[0],"https://routes.googleapis.com/directions/v2:computeRoutes");
   }finally{
     globalThis.fetch=fetchOriginal;
     if(key===undefined)Deno.env.delete("GOOGLE_MAPS_API_KEY");else Deno.env.set("GOOGLE_MAPS_API_KEY",key);
-    if(gateway===undefined)Deno.env.delete("LOVABLE_API_KEY");else Deno.env.set("LOVABLE_API_KEY",gateway);
   }
 });
