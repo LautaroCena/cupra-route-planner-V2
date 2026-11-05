@@ -3,7 +3,7 @@
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 /** Google retira modelos: un solo lugar para cambiarlo, o el secreto GEMINI_MODEL sin desplegar. */
-export const MODELO_IA = "gemini-3.8-flash";
+export const MODELO_IA = "gemini-3.5-flash-lite";
 
 export type AiChatBody = Record<string, unknown>;
 
