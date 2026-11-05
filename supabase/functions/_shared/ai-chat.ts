@@ -36,7 +36,8 @@ export async function aiChat(body: AiChatBody): Promise<AiChatResult> {
     }
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
-      console.error(`[ai-chat] Gemini ${res.status}: ${errorText.slice(0, 500)}`);
+      // En una sola línea: el panel de registros corta los mensajes con saltos de línea.
+      console.error(`[ai-chat] Gemini ${res.status}: ${errorText.replace(/\s+/g, " ").slice(0, 500)}`);
       return { ok: false, status: res.status, data: null, errorText, proveedor: "gemini" };
     }
     const data = await res.json().catch(() => null);
