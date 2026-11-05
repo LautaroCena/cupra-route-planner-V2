@@ -1,7 +1,7 @@
 import { allClients, beginImport } from "../_shared/import-batch.ts";
 import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates, repararCodificacion } from "../_shared/import-values.ts";
 import { agruparLocales, nombresAlternativos, posiblesDuplicados } from "../_shared/etl/locales.ts";
-import { limpiarSinDato, mensajeFreno, MOTIVOS_RECHAZO, revisarVentas, type MotivoRechazo } from "../_shared/etl/ventas.ts";
+import { clasificarDocumento, limpiarSinDato, mensajeFreno, MOTIVOS_RECHAZO, revisarVentas, type MotivoRechazo } from "../_shared/etl/ventas.ts";
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
 
 /**
@@ -522,12 +522,18 @@ Deno.serve(async (req) => {
     // misma razón social cuando no hay CUIT) deben caer en el mismo client_id.
     const localCuitToId = new Map<string, string>();
     const localNameToId = new Map<string, string>();
-    // Una línea sin CUIT toma el de otra línea del archivo con el mismo nombre exacto,
-    // si ese nombre tiene un único CUIT. Si tiene varios, no se adivina.
+    // Una línea sin CUIT, o con uno mal escrito, toma el de otra línea del archivo con el
+    // mismo nombre exacto, si ese nombre tiene un único documento bien formado. Si tiene
+    // varios, no se adivina. Bien formado = CUIT con dígito verificador correcto, o DNI.
+    const documentoBienFormado = (cuit: string | null) => {
+      const tipo = clasificarDocumento(cuit).tipo;
+      return tipo === 'cuit' || tipo === 'dni';
+    };
     const cuitPorNombre = new Map<string, string | null>();
+    let documentosCorregidosPorNombre = 0;
     for (const row of rows) {
       const cuit = normalizeCuit(getFieldValue(row, ['CUIT / DNI', 'CUIT/DNI', 'CUIT DNI', 'cuit_dni']));
-      if (!cuit) continue;
+      if (!cuit || !documentoBienFormado(cuit)) continue;
       for (const nombre of [getFieldValue(row, ['Razón Social', 'Razon Social', 'razon_social']), getFieldValue(row, ['Fantasía', 'Fantasia', 'fantasia'])]) {
         const clave = normalizeBusinessName(nombre);
         if (!clave) continue;
@@ -543,8 +549,13 @@ Deno.serve(async (req) => {
       const razon_social = toStr(getFieldValue(row, ['Razón Social', 'Razon Social', 'razon_social']));
       const fantasia = toStr(getFieldValue(row, ['Fantasía', 'Fantasia', 'fantasia']));
       const nameKey = normalizeBusinessName(razon_social) || normalizeBusinessName(fantasia) || null;
-      const cuit_dni = normalizeCuit(getFieldValue(row, ['CUIT / DNI', 'CUIT/DNI', 'CUIT DNI', 'cuit_dni']))
-        || (nameKey ? cuitPorNombre.get(nameKey) ?? null : null);
+      const cuitArchivo = normalizeCuit(getFieldValue(row, ['CUIT / DNI', 'CUIT/DNI', 'CUIT DNI', 'cuit_dni']));
+      const cuitPorSuNombre = nameKey ? cuitPorNombre.get(nameKey) ?? null : null;
+      let cuit_dni = cuitArchivo;
+      if (cuitPorSuNombre && (!cuitArchivo || !documentoBienFormado(cuitArchivo))) {
+        if (cuitArchivo) documentosCorregidosPorNombre++;
+        cuit_dni = cuitPorSuNombre;
+      }
       const nameMatch = nameToClientId.get(normalizeBusinessName(razon_social) || '')
         || nameToClientId.get(normalizeBusinessName(fantasia) || '');
       const cuitMatches = cuit_dni ? (cuitToClientIds.get(cuit_dni) || []) : [];
@@ -1246,6 +1257,7 @@ Deno.serve(async (req) => {
       posibles_duplicados: duplicados.slice(0, 100),
       clientes_varios_locales: clientesVariosLocales,
       clientes_con_otros_nombres: alias.length,
+      documentos_corregidos_por_nombre: documentosCorregidosPorNombre,
       vendedores_sin_usuario: vendedorBreakdown.map(v => v.vendedor).filter(v => v !== 'SIN VENDEDOR' && !nombresPerfil.has(clavePersona(v))),
       clientes_sin_coordenadas: Math.max(0, totalClientesUnicos - coordsPorCliente.size),
       filas_rechazadas: filasRechazadas.length,

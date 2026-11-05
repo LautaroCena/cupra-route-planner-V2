@@ -172,6 +172,24 @@ test('una línea sin CUIT con el mismo nombre que otra del archivo es el mismo c
   } finally { await h.close(); }
 });
 
+test('un CUIT mal escrito toma el correcto si el nombre exacto tiene uno solo; un DNI no se toca', {timeout:60000}, async () => {
+  const h=await harness();
+  try {
+    // 20123456787 falla el dígito verificador; 2012345678 tiene un dígito de menos.
+    const {status,body}=await h.raw([
+      linea({Ticket:'FV1'}),
+      linea({Ticket:'FV2','CUIT / DNI':'20123456787'}),
+      linea({Ticket:'FV3','CUIT / DNI':'2012345678'}),
+      linea({Ticket:'FV4','CUIT / DNI':'24498124','Razón Social':'Persona Prueba'}),
+      linea({Ticket:'FV5','CUIT / DNI':'20111111110','Razón Social':'Sin Gemelo'}),
+    ]);
+    assert.equal(status,200,body.error);
+    const {rows}=await h.db.query('SELECT client_id FROM clientes ORDER BY client_id');
+    assert.deepEqual(rows.map(r=>r.client_id),['20111111110',CUIT,'24498124']);
+    assert.ok(body.validacion.documentos_corregidos_por_nombre>=2);
+  } finally { await h.close(); }
+});
+
 test('handler de ventas: archivo completo, importes conservados y reintentos sin duplicados', {timeout:90000}, async () => {
   let rows;
   if(process.env.CUPRA_IMPORT_TEST_FILE) {

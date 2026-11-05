@@ -27,23 +27,67 @@ const ENTORNO_SUPABASE = `
 const TABLAS_CLAVE = ["clientes", "ventas_cupra", "prospectos", "profiles", "client_places", "asignaciones_vendedores_clientes", "cliente_feedbacks", "recomendaciones_ia", "import_batches", "feedback_extraccion", "notificaciones", "areas"];
 const FUNCIONES_CLAVE = ["guardar_importacion", "guardar_asignaciones", "autoasignar_visita", "catalogo_visitas", "recompute_client_metrics", "guardar_ruta_mapa", "reasignar_pendientes", "aplicar_ventas_import", "pendientes_geocodificacion"];
 
-test("todas las migraciones corren desde una base vacía", async () => {
+async function baseMigrada() {
   const db = new PGlite();
-  try {
-    await db.exec(ENTORNO_SUPABASE);
-    const archivos = (await readdir(CARPETA)).filter(f => f.endsWith(".sql")).sort();
-    assert.ok(archivos.length > 0);
-    const fallas = [];
-    for (const archivo of archivos) {
-      const sql = (await readFile(new URL(archivo, CARPETA), "utf8")).replace(/CREATE EXTENSION[^;]*;/gi, "");
-      try {
-        await db.exec(`BEGIN;\n${sql}\n;COMMIT;`);
-      } catch (error) {
-        await db.exec("ROLLBACK").catch(() => {});
-        fallas.push(`${archivo}: ${error.message}`);
-      }
+  await db.exec(ENTORNO_SUPABASE);
+  const archivos = (await readdir(CARPETA)).filter(f => f.endsWith(".sql")).sort();
+  assert.ok(archivos.length > 0);
+  const fallas = [];
+  for (const archivo of archivos) {
+    const sql = (await readFile(new URL(archivo, CARPETA), "utf8")).replace(/CREATE EXTENSION[^;]*;/gi, "");
+    try {
+      await db.exec(`BEGIN;\n${sql}\n;COMMIT;`);
+    } catch (error) {
+      await db.exec("ROLLBACK").catch(() => {});
+      fallas.push(`${archivo}: ${error.message}`);
     }
+  }
+  return { db, fallas };
+}
+
+test("unir clientes mueve todo al correcto y no pierde una venta repetida en silencio", async () => {
+  const { db, fallas } = await baseMigrada();
+  try {
     assert.deepEqual(fallas, []);
+    await db.exec(`
+      INSERT INTO clientes(client_id, razon_social, fantasia, telefonos) VALUES
+        ('20123456786', 'Comercio Prueba SRL', NULL, ARRAY['111']),
+        ('RS_COMERCIO PRUEBA', 'Comercio Prueba', 'La Esquina', ARRAY['222']);
+      INSERT INTO ventas_cupra(client_id, ticket, letra, fecha_emision, codigo_producto) VALUES
+        ('20123456786', 'FV1', 'A', '2026-09-01', 'P1'), ('RS_COMERCIO PRUEBA', 'FV2', 'A', '2026-09-02', 'P1');
+      INSERT INTO client_places(client_id, lat, long, direccion_principal, is_primary) VALUES
+        ('20123456786', -34.6, -58.4, 'Calle 1', true), ('RS_COMERCIO PRUEBA', -34.6, -58.4, 'Calle 1', true),
+        ('RS_COMERCIO PRUEBA', -34.7, -58.3, 'Calle 2', false);
+    `);
+    const { rows: [{ r }] } = await db.query("SELECT unir_clientes('RS_COMERCIO PRUEBA', '20123456786') r");
+    assert.equal(r.movido.ventas_cupra, 1);
+    const { rows: ventas } = await db.query("SELECT ticket FROM ventas_cupra WHERE client_id='20123456786' ORDER BY ticket");
+    assert.deepEqual(ventas.map(v => v.ticket), ["FV1", "FV2"]);
+    const { rows: locales } = await db.query("SELECT direccion_principal, is_primary FROM client_places WHERE client_id='20123456786' ORDER BY 1");
+    assert.deepEqual(locales, [{ direccion_principal: "Calle 1", is_primary: true }, { direccion_principal: "Calle 2", is_primary: false }]);
+    const { rows: [c] } = await db.query("SELECT nombres_alternativos, telefonos, fantasia FROM clientes WHERE client_id='20123456786'");
+    assert.deepEqual([...c.nombres_alternativos].sort(), ["Comercio Prueba", "La Esquina"]);
+    assert.deepEqual([...c.telefonos].sort(), ["111", "222"]);
+    assert.equal(c.fantasia, "La Esquina");
+    const { rows: quedan } = await db.query("SELECT 1 FROM clientes WHERE client_id='RS_COMERCIO PRUEBA'");
+    assert.equal(quedan.length, 0);
+
+    // La misma venta en los dos: se cancela todo y no se pierde nada.
+    await db.exec(`
+      INSERT INTO clientes(client_id, razon_social) VALUES ('RS_OTRO', 'Otro');
+      INSERT INTO ventas_cupra(client_id, ticket, letra, fecha_emision, codigo_producto) VALUES ('RS_OTRO', 'FV1', 'A', '2026-09-01', 'P1');
+    `);
+    await assert.rejects(db.query("SELECT unir_clientes('RS_OTRO', '20123456786')"));
+    const { rows: otro } = await db.query("SELECT count(*)::int n FROM ventas_cupra WHERE client_id='RS_OTRO'");
+    assert.equal(otro[0].n, 1);
+  } finally {
+    await db.close();
+  }
+});
+
+test("todas las migraciones corren desde una base vacía", async () => {
+  const { db, fallas } = await baseMigrada();
+  try {
     const { rows: tablas } = await db.query("select table_name from information_schema.tables where table_schema='public'");
     const hay = new Set(tablas.map(t => t.table_name));
     assert.deepEqual(TABLAS_CLAVE.filter(t => !hay.has(t)), []);
