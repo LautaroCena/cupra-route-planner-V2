@@ -449,6 +449,7 @@ export type Database = {
           updated_at: string | null
           vendedor_actual: string | null
           vendedor_principal: string | null
+          vendedor_sugerido: string | null
         }
         Insert: {
           barrio_principal?: string | null
@@ -501,6 +502,7 @@ export type Database = {
           updated_at?: string | null
           vendedor_actual?: string | null
           vendedor_principal?: string | null
+          vendedor_sugerido?: string | null
         }
         Update: {
           barrio_principal?: string | null
@@ -553,6 +555,7 @@ export type Database = {
           updated_at?: string | null
           vendedor_actual?: string | null
           vendedor_principal?: string | null
+          vendedor_sugerido?: string | null
         }
         Relationships: []
       }

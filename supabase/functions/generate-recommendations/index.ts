@@ -611,7 +611,7 @@ Deno.serve(async (req) => {
             score_volumen_num: cl.score_volumen,
             score_recencia_num: cl.score_recencia,
             score_volumen: cl.categoria_volumen,
-            score_recencia: cl.categoria_recencia,
+            score_recencia: c.estado_comercial,
             score_comercial: cl.score_comercial,
             ciudades: cl.todas_ciudades || (cl.ciudad_principal ? [cl.ciudad_principal] : []),
             provincias: [place.provincia_principal || cl.provincia_principal].filter(Boolean),

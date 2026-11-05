@@ -1,5 +1,6 @@
 import { allClients, beginImport } from "../_shared/import-batch.ts";
 import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates, repararCodificacion } from "../_shared/import-values.ts";
+import { vendedorInicial, type VentaVendedor } from "../_shared/vendedor-asignado.ts";
 import { agruparLocales, nombresAlternativos, posiblesDuplicados } from "../_shared/etl/locales.ts";
 import { clasificarDocumento, limpiarSinDato, mensajeFreno, MOTIVOS_RECHAZO, revisarVentas, type MotivoRechazo } from "../_shared/etl/ventas.ts";
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
@@ -27,7 +28,8 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
  * • monto_total_historico: SUM(facturacion_ars) de líneas deduplicadas. Granularidad: línea.
  * • cantidad_ordenes: COUNT(DISTINCT ticket). Granularidad: ticket único.
  * • ticket_promedio: monto_total_historico / cantidad_ordenes. Granularidad: ticket.
- * • vendedor_actual: Vendedor de la venta MÁS RECIENTE del cliente. Operativo.
+ * • vendedor_actual: Vendedor asignado. Se deduce solo para clientes nuevos
+ *   (_shared/vendedor-asignado.ts); después lo cambia un administrador.
  * • vendedor_principal: Vendedor con más ventas históricas (mode). Histórico.
  *
  * COLUMNA DE FACTURACIÓN:
@@ -932,6 +934,7 @@ Deno.serve(async (req) => {
           // Track vendedor de la venta más reciente
           ultima_fecha_venta: null as Date | null,
           vendedor_ultima_venta: null as string | null,
+          ventas_vendedor: [] as VentaVendedor[],
         });
       }
 
@@ -967,7 +970,8 @@ Deno.serve(async (req) => {
       if (fecha_iso && !esNotaCredito) {
         const d = new Date(fecha_iso);
         c.fechas.push(d);
-        // Track vendedor de la venta más reciente para vendedor_actual
+        if (vendedor) c.ventas_vendedor.push({ vendedor, fecha: fecha_iso });
+        // Vendedor de la venta más reciente: solo informativo, no define el asignado.
         if (vendedor && (!c.ultima_fecha_venta || d > c.ultima_fecha_venta)) {
           c.ultima_fecha_venta = d;
           c.vendedor_ultima_venta = vendedor;
@@ -1032,8 +1036,9 @@ Deno.serve(async (req) => {
         barrio_principal: mode(c.barrios), ciudad_principal: mode(c.ciudades),
         provincia_principal: mode(c.provincias), direccion_principal: mode(c.direcciones),
         vendedor_principal: mode(c.vendedores),
-        // TAREA 3: vendedor_actual = vendedor de la venta más reciente
-        vendedor_actual: c.vendedor_ultima_venta || mode(c.vendedores),
+        // Asignado inicial: el que más le vendió en sus últimos meses de compras. Solo
+        // se usa si el cliente es nuevo; guardar_importacion no pisa un asignado existente.
+        vendedor_actual: vendedorInicial(c.ventas_vendedor),
         productos_comprados: Array.from(c.productos),
         todos_barrios: Array.from(c.barrios), todas_ciudades: Array.from(c.ciudades),
         todas_direcciones: Array.from(c.direcciones), todos_vendedores: Array.from(c.vendedores),

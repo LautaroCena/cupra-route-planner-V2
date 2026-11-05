@@ -21,7 +21,8 @@ export interface ClienteEditable {
   cuit_dni: string | null;
   telefonos: string[] | null;
   emails: string[] | null;
-  vendedor_principal: string | null;
+  vendedor_actual: string | null;
+  vendedor_sugerido: string | null;
   requiere_visita: string | null;
   excluir_recomendaciones: boolean | null;
   motivo_exclusion: string | null;
@@ -97,7 +98,7 @@ const ClientesEdicion = () => {
       .from('clientes')
       .select(`
         client_id, razon_social, fantasia, cuit_dni,
-        telefonos, emails, vendedor_principal,
+        telefonos, emails, vendedor_actual, vendedor_sugerido,
         requiere_visita, excluir_recomendaciones, motivo_exclusion,
         provincia_principal, ciudad_principal, barrio_principal, direccion_principal
       `)
@@ -152,7 +153,8 @@ const ClientesEdicion = () => {
   const vendedores = useMemo(() => {
     const uniqueVendedores = new Set<string>();
     clientesData.forEach(cliente => {
-      if (cliente.vendedor_principal) uniqueVendedores.add(cliente.vendedor_principal);
+      if (cliente.vendedor_actual) uniqueVendedores.add(cliente.vendedor_actual);
+      if (cliente.vendedor_sugerido) uniqueVendedores.add(cliente.vendedor_sugerido);
     });
     return Array.from(uniqueVendedores).sort();
   }, [clientesData]);
@@ -185,8 +187,8 @@ const ClientesEdicion = () => {
       
       // Vendedor: misma lógica
       const matchVendedor = selectedVendedor === "all" ||
-        (selectedVendedor === "__null__" && !cliente.vendedor_principal) ||
-        (selectedVendedor !== "__null__" && cliente.vendedor_principal === selectedVendedor);
+        (selectedVendedor === "__null__" && !cliente.vendedor_actual) ||
+        (selectedVendedor !== "__null__" && cliente.vendedor_actual === selectedVendedor);
       
       // Dirección: nuevo filtro
       const matchDireccion = selectedDireccion === "all" ||
@@ -218,10 +220,10 @@ const ClientesEdicion = () => {
     setSaving(true);
     try {
       // SOLO permitir estos campos
-      const allowedFields = ['telefonos', 'emails', 'vendedor_principal'];
+      const allowedFields = ['telefonos', 'emails', 'vendedor_actual'];
       const sanitizedChanges = Object.fromEntries(
         Object.entries(changes).filter(([key]) => allowedFields.includes(key))
-      ) as Partial<Pick<Tables<'clientes'>, 'telefonos' | 'emails' | 'vendedor_principal'>>;
+      ) as Partial<Pick<Tables<'clientes'>, 'telefonos' | 'emails' | 'vendedor_actual'>>;
       
       const { error } = await supabase
         .from('clientes')
@@ -335,7 +337,7 @@ const ClientesEdicion = () => {
 
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Vendedor Principal
+                  Vendedor asignado
                 </label>
                 <Select value={selectedVendedor} onValueChange={setSelectedVendedor}>
                   <SelectTrigger className="bg-background/50">

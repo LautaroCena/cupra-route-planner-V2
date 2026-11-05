@@ -14,7 +14,7 @@
     "test:db": "node --test tests/migraciones-desde-cero.test.mjs tests/asignaciones-db.test.mjs tests/revision-prospectos-db.test.mjs",
     "test": "npm run test:motor && npm run test:db && npm run test:imports && npm run test:drafts && npm run test:bundles && npm run test:security",
     "check": "npm run typecheck && npm test && npm run build",
-    "test:imports": "node --test tests/etl-ventas.test.mjs tests/etl-locales.test.mjs tests/importacion.test.mjs tests/importacion-db.test.mjs tests/importacion-edge.test.mjs",
+    "test:imports": "node --test tests/etl-ventas.test.mjs tests/etl-locales.test.mjs tests/vendedor-asignado.test.mjs tests/importacion.test.mjs tests/importacion-db.test.mjs tests/importacion-edge.test.mjs",
     "test:drafts": "node --test tests/borradores.test.mjs",
     "test:security": "node --test tests/seguridad-db.test.mjs tests/seguridad-edge.test.mjs tests/visitas-propias-db.test.mjs",
     "test:bundles": "node --test tests/edge-bundles.test.mjs"

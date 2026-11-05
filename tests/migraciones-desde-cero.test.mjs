@@ -85,6 +85,42 @@ test("unir clientes mueve todo al correcto y no pierde una venta repetida en sil
   }
 });
 
+test("una venta de otro vendedor no cambia el asignado; varias seguidas generan aviso", async () => {
+  const { db, fallas } = await baseMigrada();
+  try {
+    assert.deepEqual(fallas, []);
+    await db.exec(`
+      INSERT INTO clientes(client_id, razon_social) VALUES ('C1', 'Uno'), ('C2', 'Dos');
+      INSERT INTO ventas_cupra(client_id, ticket, fecha_emision, codigo_producto, vendedor, tipo_comprobante) VALUES
+        ('C1', 'A1', '2026-07-01', 'P', 'ANA', 'venta'), ('C1', 'A2', '2026-08-01', 'P', 'ANA', 'venta'),
+        ('C1', 'B1', '2026-09-20', 'P', 'BETO', 'venta'),
+        ('C2', 'A3', '2026-06-01', 'P', 'ANA', 'venta'), ('C2', 'A4', '2026-06-15', 'P', 'ANA', 'venta'),
+        ('C2', 'B2', '2026-08-20', 'P', 'BETO', 'venta'), ('C2', 'B3', '2026-09-25', 'P', 'BETO', 'venta');
+    `);
+    await db.query("SELECT recompute_client_metrics()");
+    // Sin asignado: se completa con el que más le vendió, no con el último.
+    let { rows } = await db.query("SELECT client_id, vendedor_actual, vendedor_sugerido FROM clientes ORDER BY 1");
+    assert.equal(rows[0].vendedor_actual.toUpperCase(), "ANA");
+    assert.equal(rows[0].vendedor_sugerido, null);
+
+    // Con asignado: nunca se pisa. Beto le vendió en 2 días de los últimos 90 y Ana en ninguno: aviso.
+    await db.exec("UPDATE clientes SET vendedor_actual = 'ANA' WHERE client_id = 'C2'");
+    await db.exec("INSERT INTO ventas_cupra(client_id, ticket, fecha_emision, codigo_producto, vendedor, tipo_comprobante) VALUES ('C1', 'B9', '2026-09-30', 'P', 'BETO', 'venta')");
+    await db.query("SELECT recompute_client_metrics()");
+    ({ rows } = await db.query("SELECT client_id, vendedor_actual, vendedor_sugerido FROM clientes ORDER BY 1"));
+    const may = (s) => s?.toUpperCase() ?? null;
+    assert.deepEqual(rows.map(r => [may(r.vendedor_actual), may(r.vendedor_sugerido)]), [["ANA", "BETO"], ["ANA", "BETO"]]);
+
+    // Al pasarlo al sugerido, el aviso se limpia.
+    await db.exec("UPDATE clientes SET vendedor_actual = 'BETO' WHERE client_id = 'C2'");
+    ({ rows } = await db.query("SELECT vendedor_actual, vendedor_sugerido FROM clientes WHERE client_id = 'C2'"));
+    assert.equal(rows[0].vendedor_actual.toUpperCase(), "BETO");
+    assert.equal(rows[0].vendedor_sugerido, null);
+  } finally {
+    await db.close();
+  }
+});
+
 test("todas las migraciones corren desde una base vacía", async () => {
   const { db, fallas } = await baseMigrada();
   try {

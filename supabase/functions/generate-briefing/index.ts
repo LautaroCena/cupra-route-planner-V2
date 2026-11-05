@@ -1,6 +1,7 @@
 import { aiChat, hayProveedorIA, MODELO_IA } from "../_shared/ai-chat.ts";
 import { candidatoRegalos } from "../_shared/prospect-categories.ts";
 import { construirFallback } from "../_shared/briefing.ts";
+import { diasDesdeUltimaCompra, estadoPorDias, fijarFechaCorte } from "../_shared/estado-comercial.ts";
 import { authorize, failure, RequestError } from "../_shared/location-service.ts";
 
 
@@ -111,21 +112,21 @@ Deno.serve(async (req) => {
 
     if (existente && !forzar) {
       const edadDias = (Date.now() - new Date(existente.updated_at).getTime()) / 86400000;
-      if (edadDias < 7 && existente.hechos?.version === 2) {
+      if (edadDias < 7 && existente.hechos?.version === 3) {
         return new Response(JSON.stringify({ briefing: existente.briefing, hechos: existente.hechos, cache: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
 
-    const hechos: Hechos = { version: 2 };
+    const hechos: Hechos = { version: 3 };
     let nombre = "Cliente";
 
     if (clientId) {
       const { data: cliente } = await supabase
         .from("clientes")
         .select(
-          "client_id, razon_social, fantasia, rubro, canal, barrio_principal, monto_total_cupra, monto_total_historico, ticket_promedio, cadencia_dias, dias_desde_ultima_compra, ultima_compra, precio_promedio_caja, monto_notas_credito, fecha_ultima_nc, share_cupra, productos_comprados, etiquetas, categoria_volumen, categoria_recencia",
+          "client_id, razon_social, fantasia, rubro, canal, barrio_principal, monto_total_cupra, monto_total_historico, ticket_promedio, cadencia_dias, dias_desde_ultima_compra, ultima_compra, precio_promedio_caja, monto_notas_credito, fecha_ultima_nc, share_cupra, productos_comprados, etiquetas, categoria_volumen",
         )
         .eq("client_id", clientId)
         .maybeSingle();
@@ -145,9 +146,13 @@ Deno.serve(async (req) => {
       hechos.monto_total = fmtARS(cliente.monto_total_cupra ?? cliente.monto_total_historico);
       hechos.ticket_promedio = fmtARS(cliente.ticket_promedio);
       hechos.cadencia_dias = cliente.cadencia_dias;
-      hechos.dias_desde_ultima_compra = cliente.dias_desde_ultima_compra;
+      // Mismo criterio que el motor, la ficha y el tablero.
+      fijarFechaCorte((await supabase.rpc("fecha_corte_datos")).data);
+      const dias = diasDesdeUltimaCompra(cliente);
+      hechos.dias_desde_ultima_compra = dias;
+      hechos.estado = estadoPorDias(dias);
       hechos.ultima_compra = cliente.ultima_compra;
-      hechos.categoria = [cliente.categoria_volumen, cliente.categoria_recencia].filter(Boolean).join(" / ") || null;
+      hechos.categoria = cliente.categoria_volumen || null;
       if (cliente.share_cupra !== null && cliente.share_cupra !== undefined) {
         hechos.share_cupra_pct = Number(cliente.share_cupra);
       }
@@ -155,8 +160,8 @@ Deno.serve(async (req) => {
         hechos.nota_credito_pendiente = fmtARS(cliente.monto_notas_credito);
         hechos.fecha_ultima_nc = cliente.fecha_ultima_nc;
       }
-      if (cliente.cadencia_dias && cliente.dias_desde_ultima_compra) {
-        hechos.atraso_vs_cadencia_dias = Math.max(0, Number(cliente.dias_desde_ultima_compra) - Number(cliente.cadencia_dias));
+      if (cliente.cadencia_dias && dias !== null) {
+        hechos.atraso_vs_cadencia_dias = Math.max(0, dias - Number(cliente.cadencia_dias));
       }
 
       // Ventas del cliente: productos, estacionalidad y precio realizado

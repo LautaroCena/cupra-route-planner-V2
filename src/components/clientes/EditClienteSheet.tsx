@@ -52,7 +52,7 @@ export const EditClienteSheet = ({
   useEffect(() => {
     setTelefonos(cliente.telefonos || []);
     setEmails(cliente.emails || []);
-    setVendedorPrincipal(cliente.vendedor_principal || "");
+    setVendedorPrincipal(cliente.vendedor_actual || "");
     setNewTelefono("");
     setNewEmail("");
     setShowGeocodingForm(false);
@@ -88,14 +88,14 @@ export const EditClienteSheet = ({
     onSave({
       telefonos,
       emails,
-      vendedor_principal: vendedorPrincipal || null,
+      vendedor_actual: vendedorPrincipal || null,
     });
   };
 
   const hasChanges = 
     JSON.stringify(telefonos) !== JSON.stringify(cliente.telefonos || []) ||
     JSON.stringify(emails) !== JSON.stringify(cliente.emails || []) ||
-    vendedorPrincipal !== (cliente.vendedor_principal || "");
+    vendedorPrincipal !== (cliente.vendedor_actual || "");
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -239,9 +239,9 @@ export const EditClienteSheet = ({
               </div>
             </div>
 
-            {/* Vendedor Principal */}
+            {/* Vendedor asignado */}
             <div className="space-y-2">
-              <Label>Vendedor Principal</Label>
+              <Label>Vendedor asignado</Label>
               <Select 
                 value={vendedorPrincipal || "__none__"} 
                 onValueChange={(val) => setVendedorPrincipal(val === "__none__" ? "" : val)}
@@ -256,6 +256,15 @@ export const EditClienteSheet = ({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Una venta de otro vendedor no cambia el asignado. Se cambia solo desde acá.
+              </p>
+              {cliente.vendedor_sugerido && (
+                <p className="text-xs text-amber-600">
+                  {cliente.vendedor_sugerido} le vendió varias veces en los últimos 90 días. Si ahora lo atiende
+                  {" "}{cliente.vendedor_sugerido}, cambiá el asignado.
+                </p>
+              )}
             </div>
           </div>
 

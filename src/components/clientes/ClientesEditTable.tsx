@@ -57,7 +57,7 @@ export const ClientesEditTable = ({ clientes, onEdit }: ClientesEditTableProps) 
                 <TableHead className="font-semibold">Razón Social</TableHead>
                 <TableHead className="font-semibold">Dirección</TableHead>
                 <TableHead className="font-semibold">Barrio</TableHead>
-                <TableHead className="font-semibold">Vendedor Principal</TableHead>
+                <TableHead className="font-semibold">Vendedor asignado</TableHead>
                 <TableHead className="font-semibold">Teléfonos</TableHead>
                 <TableHead className="font-semibold">Provincia</TableHead>
                 <TableHead className="font-semibold text-center">Geo</TableHead>
@@ -89,7 +89,7 @@ export const ClientesEditTable = ({ clientes, onEdit }: ClientesEditTableProps) 
                       {cliente.barrio_principal || "—"}
                     </TableCell>
                     <TableCell>
-                      {cliente.vendedor_principal || "—"}
+                      {cliente.vendedor_actual || "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatTelefonos(cliente.telefonos)}

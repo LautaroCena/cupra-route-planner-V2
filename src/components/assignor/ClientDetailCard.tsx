@@ -24,7 +24,13 @@ import { Sucursal } from "@/types/sales";
 import ExcludeClientButton from "./ExcludeClientButton";
 import { getGoogleMapsUrl } from "@/lib/utils";
 import { formatMonto, toTitleCase } from "@/lib/format";
-import { colorEstado, estadoDe, labelEstado } from "@/lib/segmentos";
+import { colorEstado, diasSinComprar, estadoDe, labelEstado } from "@/lib/segmentos";
+
+/** Días sin comprar, medidos con el mismo criterio que el estado. */
+const textoDias = (c: Parameters<typeof diasSinComprar>[0]) => {
+  const dias = diasSinComprar(c);
+  return dias === null ? "Sin compras" : `${dias} días sin comprar`;
+};
 
 interface ClientDetailCardProps {
   cliente: Sucursal;
@@ -69,7 +75,7 @@ const ClientDetailCard = ({
           <div className="flex items-center justify-between gap-2">
             <Badge variant="outline" className="text-xs whitespace-nowrap">
               <Calendar className="w-3 h-3 mr-1" />
-              {cliente.dias_desde_ultima_compra || cliente.dias_sin_visita || 0} días
+              {textoDias(cliente)}
             </Badge>
           </div>
           {(cliente.vendedor_actual || cliente.vendedor_principal) && (
@@ -220,7 +226,7 @@ const ClientDetailCard = ({
                 )}
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-accent" />
-                  <span>{cliente.dias_sin_visita || cliente.dias_desde_ultima_compra} días</span>
+                  <span>{textoDias(cliente)}</span>
                 </div>
                 {cliente.cantidad_ordenes !== undefined && (
                   <div className="flex items-center gap-2">
@@ -280,14 +286,6 @@ const ClientDetailCard = ({
             </div>
           )}
 
-          {/* Alertas importantes */}
-          {cliente.requiere_visita === "1" && (
-            <div className="bg-destructive/10 p-3 rounded-md flex gap-2 items-center">
-              <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
-              <p className="text-sm font-medium text-destructive">Requiere visita urgente</p>
-            </div>
-          )}
-
           {/* Collapsible con información completa */}
           <Collapsible open={isOpen} onOpenChange={setIsOpen}>
             <CollapsibleTrigger asChild>
@@ -321,17 +319,17 @@ const ClientDetailCard = ({
                   </div>
                   <div>
                     <span className="text-muted-foreground">Días desde última compra:</span>
-                    <p className="font-medium">{cliente.dias_desde_ultima_compra || 'N/A'}</p>
+                    <p className="font-medium">{diasSinComprar(cliente) ?? 'Sin compras'}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Monto total histórico:</span>
                     <p className="font-medium">{formatCurrency(cliente.monto_total_historico)}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Categoría recencia:</span>
+                    <span className="text-muted-foreground">Estado:</span>
                     <p className="font-medium">
                       <Badge variant="outline" className="text-xs">
-                        {cliente.categoria_recencia || 'N/A'}
+                        {labelEstado(estadoDe(cliente))}
                       </Badge>
                     </p>
                   </div>
@@ -352,11 +350,7 @@ const ClientDetailCard = ({
                   <Star className="w-4 h-4" />
                   Scores de Evaluación (Base de Datos)
                 </h4>
-                <div className="grid grid-cols-3 gap-2 text-xs pl-6">
-                  <div>
-                    <span className="text-muted-foreground">Recencia:</span>
-                    <p className="font-medium">{cliente.score_recencia_num || cliente.score_recencia || 'N/A'}</p>
-                  </div>
+                <div className="grid grid-cols-2 gap-2 text-xs pl-6">
                   <div>
                     <span className="text-muted-foreground">Volumen:</span>
                     <p className="font-medium">{cliente.score_volumen_num || cliente.score_volumen || 'N/A'}</p>

@@ -60,6 +60,7 @@ import RecordatoriosCalendario from "./RecordatoriosCalendario";
 import AgregarProspectoForm, { hasProspectoDraft } from "./AgregarProspectoForm";
 import AutoAsignarDialog from "./AutoAsignarDialog";
 import ProspectoFormModal from "./ProspectoFormModal";
+import { diasSinComprar, estadoDe, labelEstado } from "@/lib/segmentos";
 
 export interface VendedorKanbanRef {
   focusAssignment: (assignmentId: string) => void;
@@ -393,7 +394,8 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
           razon_social: clienteData.razon_social || 'Sin nombre',
           cuit_dni: clienteData.cuit_dni || '',
           barrio_principal: clienteData.barrio_principal,
-          dias_desde_ultima_compra: clienteData.dias_desde_ultima_compra,
+          // Mismo criterio que el motor y los filtros (estado-comercial.ts), no el valor guardado al importar.
+          dias_desde_ultima_compra: diasSinComprar(clienteData) ?? undefined,
           ciudad_principal: clienteData.ciudad_principal,
           provincia_principal: clienteData.provincia_principal,
           direccion_principal: clienteData.direccion_principal,
@@ -405,7 +407,7 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
           cantidad_ordenes: clienteData.cantidad_ordenes,
           monto_total_historico: clienteData.monto_total_historico,
           ticket_promedio: clienteData.ticket_promedio,
-          categoria_recencia: clienteData.categoria_recencia,
+          categoria_recencia: labelEstado(estadoDe(clienteData)),
           categoria_volumen: clienteData.categoria_volumen,
           score_recencia: clienteData.score_recencia,
           score_volumen: clienteData.score_volumen,
@@ -1492,7 +1494,7 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
                     )}
                     {selectedCliente.categoria_recencia && (
                       <Badge variant="outline" className="justify-center py-2">
-                        Recencia: {selectedCliente.categoria_recencia}
+                        Estado: {selectedCliente.categoria_recencia}
                       </Badge>
                     )}
                     {selectedCliente.categoria_volumen && (
