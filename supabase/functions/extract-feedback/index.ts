@@ -1,3 +1,4 @@
+import { aiChat, hayProveedorIA, MODELO_IA } from "../_shared/ai-chat.ts";
 // ============================================================
 // Extracción estructurada del feedback de calle.
 // IA SOLO en la frontera no-estructurado → estructurado.
@@ -7,14 +8,14 @@
 // ============================================================
 
 import { authorize, failure } from "../_shared/location-service.ts";
-import { aiChat, hayProveedorIA } from "../_shared/ai-chat.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MODEL = "google/gemini-2.5-flash";
+const MODEL = MODELO_IA;
 
 const EXTRACTION_TOOL = {
   type: "function",

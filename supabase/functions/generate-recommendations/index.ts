@@ -165,7 +165,6 @@ async function redactarConIA(
 
   try {
     const r = await aiChat({
-      model: "google/gemini-2.5-flash",
       messages: [
         {
           role: "system",

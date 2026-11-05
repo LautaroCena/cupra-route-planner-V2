@@ -2,7 +2,10 @@
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
-export type AiChatBody = Record<string, unknown> & { model: string };
+/** Google retira modelos: un solo lugar para cambiarlo, o el secreto GEMINI_MODEL sin desplegar. */
+export const MODELO_IA = "gemini-3.8-flash";
+
+export type AiChatBody = Record<string, unknown>;
 
 export type AiChatResult = {
   ok: boolean;
@@ -11,11 +14,6 @@ export type AiChatResult = {
   errorText: string;
   proveedor: "gemini" | "ninguno";
 };
-
-/** Gemini directo no acepta el prefijo de proveedor en el nombre del modelo. */
-function modeloGemini(model: string): string {
-  return model.replace(/^google\//, "");
-}
 
 export async function aiChat(body: AiChatBody): Promise<AiChatResult> {
   const key = Deno.env.get("GEMINI_API_KEY") || "";
@@ -26,7 +24,7 @@ export async function aiChat(body: AiChatBody): Promise<AiChatResult> {
     const res = await fetch(GEMINI_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ ...body, model: modeloGemini(body.model) }),
+      body: JSON.stringify({ ...body, model: Deno.env.get("GEMINI_MODEL") || MODELO_IA }),
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) {

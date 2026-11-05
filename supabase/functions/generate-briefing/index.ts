@@ -1,14 +1,15 @@
+import { aiChat, hayProveedorIA, MODELO_IA } from "../_shared/ai-chat.ts";
 import { candidatoRegalos } from "../_shared/prospect-categories.ts";
 import { construirFallback } from "../_shared/briefing.ts";
 import { authorize, failure, RequestError } from "../_shared/location-service.ts";
-import { aiChat, hayProveedorIA } from "../_shared/ai-chat.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MODEL = "google/gemini-2.5-flash";
+const MODEL = MODELO_IA;
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 
 type Hechos = Record<string, unknown>;
