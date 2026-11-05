@@ -1,3 +1,29 @@
+const CP1252: Record<string, number> = {
+  "\u20AC": 0x80, "\u201A": 0x82, "\u0192": 0x83, "\u201E": 0x84, "\u2026": 0x85, "\u2020": 0x86, "\u2021": 0x87,
+  "\u02C6": 0x88, "\u2030": 0x89, "\u0160": 0x8A, "\u2039": 0x8B, "\u0152": 0x8C, "\u017D": 0x8E, "\u2018": 0x91,
+  "\u2019": 0x92, "\u201C": 0x93, "\u201D": 0x94, "\u2022": 0x95, "\u2013": 0x96, "\u2014": 0x97, "\u02DC": 0x98,
+  "\u2122": 0x99, "\u0161": 0x9A, "\u203A": 0x9B, "\u0153": 0x9C, "\u017E": 0x9E, "\u0178": 0x9F,
+};
+const DOBLE_CODIFICACION = /[\u00C2\u00C3][\u0080-\u00BF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/g;
+
+/** Repara texto UTF-8 leído como Latin-1, aunque esté codificado más de una vez. Lo ya perdido (U+FFFD) no se recupera. */
+export function repararCodificacion(texto: string): string {
+  let actual = texto;
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    const siguiente = actual.replace(DOBLE_CODIFICACION, (par) => {
+      const byte = CP1252[par[1]] ?? par.charCodeAt(1);
+      return String.fromCharCode(((par.charCodeAt(0) & 0x1f) << 6) | (byte & 0x3f));
+    });
+    if (siguiente === actual) break;
+    actual = siguiente;
+  }
+  // Comillas y guiones de Windows que quedaron sueltos como caracteres de control.
+  return actual.replace(/[\u0080-\u009F]/g, (c) => {
+    const original = Object.entries(CP1252).find(([, byte]) => byte === c.charCodeAt(0));
+    return original ? original[0] : " ";
+  });
+}
+
 /** Locale-aware ERP values; numeric Excel cells are already unambiguous. */
 export function currencyNumber(value: unknown): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;

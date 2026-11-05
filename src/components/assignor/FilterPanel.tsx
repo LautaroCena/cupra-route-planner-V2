@@ -125,6 +125,8 @@ const FilterPanel = ({
       if (error) throw error;
       const mapped = (data || []).map(v => ({ id: v.user_id, profileId: v.id, nombre: toTitleCase(v.nombre), email: v.email }));
       setVendedores(mapped);
+      // Un borrador puede guardar un vendedor que ya no está disponible.
+      setSelectedVendedores((prev) => prev.filter((id) => mapped.some((v) => v.id === id)));
       if (draftStore.get("filtros", "selectedVendedores", null) === null) setSelectedVendedores(mapped.map(v => v.id));
     } catch (error) { console.error('Error fetching vendedores:', error); }
     finally { setIsLoadingVendedores(false); }

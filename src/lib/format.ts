@@ -1,3 +1,10 @@
+/** Importe en pesos. Un total en 0 significa que el archivo no trae precios: se muestra como desconocido. */
+export function formatMonto(valor?: number | null, desconocido = "Sin dato"): string {
+  const numero = Number(valor);
+  if (valor === null || valor === undefined || !Number.isFinite(numero) || numero === 0) return desconocido;
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(numero);
+}
+
 const LOWER_WORDS = new Set(["de", "del", "la", "las", "los", "y", "e", "da", "do"]);
 
 /** Normaliza nombres a Capital Letter: "CAROLINA MELANIE" -> "Carolina Melanie" */

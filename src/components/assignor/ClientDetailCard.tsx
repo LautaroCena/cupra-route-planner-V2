@@ -23,7 +23,7 @@ import {
 import { Sucursal } from "@/types/sales";
 import ExcludeClientButton from "./ExcludeClientButton";
 import { getGoogleMapsUrl } from "@/lib/utils";
-import { toTitleCase } from "@/lib/format";
+import { formatMonto, toTitleCase } from "@/lib/format";
 import { colorEstado, estadoDe, labelEstado } from "@/lib/segmentos";
 
 interface ClientDetailCardProps {
@@ -43,14 +43,7 @@ const ClientDetailCard = ({
 }: ClientDetailCardProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const formatCurrency = (value?: number | null) => {
-    if (value === undefined || value === null) return 'N/A';
-    return new Intl.NumberFormat('es-AR', { 
-      style: 'currency', 
-      currency: 'ARS',
-      maximumFractionDigits: 0
-    }).format(value);
-  };
+  const formatCurrency = (value?: number | null) => formatMonto(value, 'N/A');
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';

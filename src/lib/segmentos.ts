@@ -11,6 +11,7 @@
 // ============================================================
 
 import { type EstadoComercial, diasDesdeUltimaCompra, estadoPorDias } from "../../supabase/functions/_shared/estado-comercial";
+export { fechaReferencia, fijarFechaCorte, obtenerFechaCorte } from "../../supabase/functions/_shared/estado-comercial";
 export { type EstadoComercial, DIAS_ACTIVO, DIAS_INACTIVO, hoyArgentina, estadoPorDias } from "../../supabase/functions/_shared/estado-comercial";
 export const diasSinComprar = diasDesdeUltimaCompra;
 

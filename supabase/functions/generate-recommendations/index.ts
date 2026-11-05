@@ -10,6 +10,7 @@
 // ============================================================
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
+import { fijarFechaCorte } from "../_shared/estado-comercial.ts";
 import { loadIdentityContext, persistFoundProspects } from "../_shared/prospect-review-service.ts";
 import type { IdentityProspect } from "../_shared/prospect-identity.ts";
 import { aiChat, hayProveedorIA } from "../_shared/ai-chat.ts";
@@ -229,6 +230,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
+    fijarFechaCorte((await db.rpc("fecha_corte_datos")).data);
     // Solo asignadores y administradores: la función usa la service role y puede
     // disparar búsquedas pagas en Google Maps.
     const token = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];

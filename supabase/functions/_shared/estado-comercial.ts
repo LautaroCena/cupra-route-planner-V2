@@ -7,6 +7,21 @@ export function hoyArgentina(now: Date = new Date()): string {
   return new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+let fechaCorte: string | null = null;
+
+/** Fecha de los datos (última venta cargada). Si está fijada, los días se miden contra ella. */
+export function fijarFechaCorte(fecha: unknown): void {
+  fechaCorte = typeof fecha === "string" && /^\d{4}-\d{2}-\d{2}/.test(fecha) ? fecha.slice(0, 10) : null;
+}
+
+export function obtenerFechaCorte(): string | null {
+  return fechaCorte;
+}
+
+export function fechaReferencia(now: Date = new Date()): string {
+  return fechaCorte ?? hoyArgentina(now);
+}
+
 export function diasDesdeUltimaCompra(
   c: { ultima_compra?: string | null; dias_desde_ultima_compra?: number | null },
   now: Date = new Date(),
@@ -15,7 +30,7 @@ export function diasDesdeUltimaCompra(
   if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
     const ultima = Date.parse(`${fecha}T00:00:00Z`);
     if (Number.isFinite(ultima) && new Date(ultima).toISOString().slice(0, 10) === fecha) {
-      return Math.max(0, Math.round((Date.parse(`${hoyArgentina(now)}T00:00:00Z`) - ultima) / 86_400_000));
+      return Math.max(0, Math.round((Date.parse(`${fechaReferencia(now)}T00:00:00Z`) - ultima) / 86_400_000));
     }
   }
   const dias = c.dias_desde_ultima_compra;

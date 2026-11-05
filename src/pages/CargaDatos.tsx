@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import cupraLogo from "@/assets/cupra-logo-new.png";
 import { parseImportWorkbook, type ImportSheet } from "@/lib/excelImport";
-import { toTitleCase } from "@/lib/format";
+import { formatMonto, toTitleCase } from "@/lib/format";
+import { cargarFechaCorte } from "@/lib/fechaCorte";
 
 type Step = "upload" | "preview" | "processing" | "done";
 type FileKind = "ventas" | "maestro" | "prospectos";
@@ -215,6 +216,7 @@ const CargaDatos = () => {
 
   // Geocoding state
   const [pendingGeocount, setPendingGeocount] = useState<number | null>(null);
+  const [totalClientes, setTotalClientes] = useState<number | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeType, setGeocodeType] = useState<"clientes" | "prospectos">("clientes");
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResults | null>(null);
@@ -246,6 +248,8 @@ const CargaDatos = () => {
       return;
     }
     setPendingGeocount(Number((data as { pendientes?: number } | null)?.pendientes ?? 0));
+    const { count } = await supabase.from("clientes").select("client_id", { count: "exact", head: true });
+    setTotalClientes(count ?? null);
   }, []);
 
   useEffect(() => {
@@ -380,6 +384,7 @@ const CargaDatos = () => {
       if (error) { const details = await error.context?.json?.().catch(() => null); throw new Error(details?.error || error.message || "Error al procesar"); }
       if (!data?.success) throw new Error(data?.error || "Error desconocido");
       setResults(data.results);
+      cargarFechaCorte();
       setBatchId(data.batch_id || null);
       // TAREA 7, 9, 10: Guardar datos extendidos
       if (data.calidad) setCalidad(data.calidad);
@@ -475,12 +480,7 @@ const CargaDatos = () => {
 
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency', currency: 'ARS',
-      minimumFractionDigits: 0, maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) => formatMonto(amount);
 
   if (!profile) {
     return (
@@ -940,7 +940,7 @@ const CargaDatos = () => {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Clientes del archivo que coinciden con la base: {(reconciliacion.rango.clientes_match ?? 0).toLocaleString()} de{" "}
-                    {(reconciliacion.rango.clientes_archivo ?? 0).toLocaleString()} ({reconciliacion.rango.pct_match_clientes ?? 0}%)
+                    {(reconciliacion.rango.clientes_archivo ?? 0).toLocaleString()} ({reconciliacion.rango.clientes_archivo ? Math.round(((reconciliacion.rango.clientes_match ?? 0) / reconciliacion.rango.clientes_archivo) * 100) : 0}%)
                   </p>
                   {batchId && (
                     <Button size="sm" variant="outline" onClick={handleRevertirCarga} disabled={revirtiendo}>
@@ -1224,7 +1224,7 @@ const CargaDatos = () => {
             ) : pendingGeocount === 0 && (!geocodeResults || geocodeType !== "clientes") ? (
               <div className="flex items-center gap-2 text-green-600">
                 <CheckCircle2 className="h-5 w-5" />
-                <span className="text-sm font-medium">Todos los clientes tienen coordenadas y barrio</span>
+                <span className="text-sm font-medium">{totalClientes === 0 ? "Todavía no hay clientes cargados" : "Todos los clientes tienen coordenadas y barrio"}</span>
               </div>
             ) : (
               <div className="space-y-4">

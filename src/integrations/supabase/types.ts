@@ -221,6 +221,7 @@ export type Database = {
           estado: Database["public"]["Enums"]["estado_asignacion"]
           fecha_programada: string | null
           id: string
+          orden_ruta: number | null
           origen_asignacion: string
           prospecto_place_id: string | null
           vendedor_id: string
@@ -233,6 +234,7 @@ export type Database = {
           estado?: Database["public"]["Enums"]["estado_asignacion"]
           fecha_programada?: string | null
           id?: string
+          orden_ruta?: number | null
           origen_asignacion?: string
           prospecto_place_id?: string | null
           vendedor_id: string
@@ -245,6 +247,7 @@ export type Database = {
           estado?: Database["public"]["Enums"]["estado_asignacion"]
           fecha_programada?: string | null
           id?: string
+          orden_ruta?: number | null
           origen_asignacion?: string
           prospecto_place_id?: string | null
           vendedor_id?: string

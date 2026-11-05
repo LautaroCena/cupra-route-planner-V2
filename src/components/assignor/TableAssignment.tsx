@@ -263,9 +263,16 @@ const TableAssignment = ({
     setIsLoading(true);
     try {
       // La cuenta se identifica por client_id: un CUIT puede tener varias sucursales.
+      const ordenPorVendedor = new Map<string, number>();
+      const siguienteOrden = (vendedor: string) => {
+        const orden = (ordenPorVendedor.get(vendedor) ?? 0) + 1;
+        ordenPorVendedor.set(vendedor, orden);
+        return orden;
+      };
       const newAssignments = selectedRecommendations
         .filter((rec) => assignmentMap[rec.id])
         .map((rec) => ({
+          orden_ruta: siguienteOrden(assignmentMap[rec.id]),
           vendedor_id: assignmentMap[rec.id],
           client_id: rec.es_prospecto ? null : rec.client_id,
           prospecto_place_id: rec.es_prospecto ? rec.prospecto_place_id : null,

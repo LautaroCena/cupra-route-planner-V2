@@ -36,7 +36,12 @@ export async function googleGeocode(params: URLSearchParams): Promise<GeocodeRes
   params.set("region", "ar");
   let response: Response;
   try { response = await googleMapsFetch(`/maps/api/geocode/json?${params}`); }
-  catch { throw new RequestError("No se pudo conectar con Google Maps. Intentá nuevamente.", 502, "GOOGLE_ERROR"); }
+  catch (error) {
+    if (error instanceof Error && error.message.startsWith("Falta GOOGLE_MAPS_API_KEY")) {
+      throw new RequestError("Falta configurar la clave de Google Maps. Sin ella no se pueden ubicar direcciones.", 503, "GOOGLE_KEY_MISSING");
+    }
+    throw new RequestError("No se pudo conectar con Google Maps. Intentá nuevamente.", 502, "GOOGLE_ERROR");
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !["OK", "ZERO_RESULTS"].includes(data.status)) {
     throw new RequestError(`Google Maps no pudo resolver la consulta (${data.status || response.status}). Intentá nuevamente o revisá la configuración del servicio.`, 502, "GOOGLE_ERROR");

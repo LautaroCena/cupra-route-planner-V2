@@ -31,7 +31,8 @@ function familiaProducto(nombre: string) {
 }
 
 function fmtARS(n: number | null | undefined) {
-  if (n === null || n === undefined || !isFinite(Number(n))) return null;
+  // Sin precios en el archivo el total queda en 0: es desconocido, no "$ 0".
+  if (n === null || n === undefined || !isFinite(Number(n)) || Number(n) === 0) return null;
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(n));
 }
 

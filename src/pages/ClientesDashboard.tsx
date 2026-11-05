@@ -32,7 +32,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ZonaKPIs from "@/components/clientes/ZonaKPIs";
 import ClienteDetalleDialog from "@/components/clientes/ClienteDetalleDialog";
-import { toTitleCase, vendorKey, sameVendor, dedupeVendors } from "@/lib/format";
+import { formatMonto, toTitleCase, vendorKey, sameVendor, dedupeVendors } from "@/lib/format";
+import DatosAl from "@/components/shared/DatosAl";
 import { SegmentFilters } from "@/components/shared/SegmentFilters";
 import { estadoDe, FILTROS_VACIOS, filtrarPorSegmentos, hayFiltros, type FiltrosSegmento } from "@/lib/segmentos";
 
@@ -417,14 +418,7 @@ const ClientesDashboard = () => {
     setSelectedBarrio("all");
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) => formatMonto(amount);
 
   if (loading) {
     return (
@@ -449,6 +443,7 @@ const ClientesDashboard = () => {
               <p className="text-sm text-muted-foreground mt-1">
                 Análisis interactivo de clientes y ventas
               </p>
+              <DatosAl />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 md:gap-4">

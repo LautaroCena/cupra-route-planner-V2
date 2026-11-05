@@ -1,4 +1,5 @@
 import { errorRuta, VISITAS_POR_DIA } from "../../supabase/functions/_shared/ruta";
+import DatosAl from "@/components/shared/DatosAl";
 import { guardarAsignaciones } from "@/lib/asignaciones";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -347,6 +348,13 @@ const AssignorDashboard = () => {
     setShowConfirmAssign(false);
     const selected = recommendations.filter((rec) => selectedSucursales.includes(rec.id));
     if (selected.length === 0) return;
+    // El orden de la lista es el del recorrido de cada vendedor.
+    const ordenPorVendedor = new Map<string, number>();
+    const siguienteOrden = (vendedor: string) => {
+      const orden = (ordenPorVendedor.get(vendedor) ?? 0) + 1;
+      ordenPorVendedor.set(vendedor, orden);
+      return orden;
+    };
 
 
     const missingVendor = selected.filter((rec) => !rec.vendedor_recomendado_id);
@@ -366,13 +374,14 @@ const AssignorDashboard = () => {
         client_id?: string;
         prospecto_place_id?: string;
         es_prospecto: boolean;
-        origen_asignacion: string;
+        origen_asignacion: string; orden_ruta?: number;
       }> = [];
       selected.forEach((rec) => {
         const vendedorId = rec.vendedor_recomendado_id;
         if (!vendedorId) return;
         if (rec.es_prospecto && rec.prospecto_place_id) {
           assignments.push({
+            orden_ruta: siguienteOrden(vendedorId),
             vendedor_id: vendedorId,
             prospecto_place_id: rec.prospecto_place_id,
             es_prospecto: true,
@@ -382,6 +391,7 @@ const AssignorDashboard = () => {
         }
         if (rec.client_id) {
           assignments.push({
+            orden_ruta: siguienteOrden(vendedorId),
             vendedor_id: vendedorId,
             client_id: rec.client_id,
             es_prospecto: false,
@@ -540,6 +550,7 @@ const AssignorDashboard = () => {
           <div>
             <h1 className="text-3xl font-sans text-foreground tracking-tight">Panel de Asignación</h1>
             <p className="text-sm text-muted-foreground mt-2">Recomendaciones inteligentes y gestión de asignaciones</p>
+            <DatosAl />
           </div>
 
           {(recommendations.length > 0 || resumeFlowStep) && (

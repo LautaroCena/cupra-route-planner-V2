@@ -1,5 +1,5 @@
 import { allClients, beginImport } from "../_shared/import-batch.ts";
-import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates } from "../_shared/import-values.ts";
+import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates, repararCodificacion } from "../_shared/import-values.ts";
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
 
 /**
@@ -91,7 +91,7 @@ const BARRIOS_A_COMUNA: Record<string, string> = {
 
 // === HELPERS ===
 const isEmpty = (v: any): boolean => v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
-const toStr = (v: any): string | null => isEmpty(v) ? null : String(v).trim();
+const toStr = (v: any): string | null => isEmpty(v) ? null : repararCodificacion(String(v)).trim();
 const normalizeClientId = (v: any): string | null => {
   if (isEmpty(v)) return null;
   const raw = String(v).trim();
@@ -1077,7 +1077,8 @@ Deno.serve(async (req) => {
     const vendedorBreakdown: { vendedor: string; monto: number; registros: number }[] = [];
     const vendedorAgg = new Map<string, { monto: number; registros: number }>();
     for (const v of ventasDeduplicadas) {
-      const vend = v.vendedor || 'Sin vendedor';
+      // Un mismo vendedor puede venir con otras mayúsculas o espacios.
+      const vend = (v.vendedor || 'Sin vendedor').trim().replace(/\s+/g, ' ').toUpperCase();
       if (!vendedorAgg.has(vend)) vendedorAgg.set(vend, { monto: 0, registros: 0 });
       const entry = vendedorAgg.get(vend)!;
       entry.monto += v.facturacion_ars || 0;

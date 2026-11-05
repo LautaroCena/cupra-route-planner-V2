@@ -36,12 +36,12 @@ import { Search, UserCheck, Users, AlertCircle, Lightbulb, Clock, UserX, Trendin
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { toTitleCase } from "@/lib/format";
+import { formatMonto, toTitleCase } from "@/lib/format";
 import { SALES_PROFILE_OR_FILTER } from "@/lib/roles";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useRubros } from "@/hooks/useRubros";
 import { useDraftState } from "@/hooks/useAssignmentDraft";
-import { colorEstado, DIAS_ACTIVO, DIAS_INACTIVO, ESTADOS, estadoPorDias, hoyArgentina, labelEstado } from "@/lib/segmentos";
+import { fechaReferencia, colorEstado, DIAS_ACTIVO, DIAS_INACTIVO, ESTADOS, estadoPorDias, hoyArgentina, labelEstado } from "@/lib/segmentos";
 
 
 interface Cliente {
@@ -104,8 +104,7 @@ type SortKey = "nombre" | "ciudad" | "provincia" | "vendedor" | "monto" | "dias"
 type SortDir = "asc" | "desc";
 type TipoFiltro = "todos" | "clientes" | "prospectos";
 
-const formatCurrency = (v: number | null) =>
-  v != null ? `$${v.toLocaleString("es-AR", { maximumFractionDigits: 0 })}` : "—";
+const formatCurrency = (v: number | null) => formatMonto(v, "—");
 
 const normalizeRS = (rs: string) => rs.trim().toUpperCase().replace(/\s+/g, " ");
 
@@ -212,7 +211,7 @@ const ManualAssignment = () => {
         if (rubros.length > 0) q = q.in("rubro", rubros);
         // Estado comercial por fecha de última compra (calculado hoy, hora Argentina).
         if (estados.length > 0) {
-          const hoy = new Date(`${hoyArgentina()}T00:00:00Z`);
+          const hoy = new Date(`${fechaReferencia()}T00:00:00Z`);
           const hace = (d: number) => new Date(hoy.getTime() - d * 86400000).toISOString().slice(0, 10);
           const conds: string[] = [];
           if (estados.includes("ACTIVO")) conds.push(`ultima_compra.gte.${hace(DIAS_ACTIVO)}`);

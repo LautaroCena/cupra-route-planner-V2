@@ -1,5 +1,7 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import BriefingVisita from "@/components/shared/BriefingVisita";
+import DatosAl from "@/components/shared/DatosAl";
+import { formatMonto } from "@/lib/format";
 import { 
   DndContext, 
   DragEndEvent, 
@@ -476,6 +478,10 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
 
       console.log("Assignments", grouped);
 
+      // Mismo orden del recorrido calculado; lo manual queda después, por antigüedad.
+      const ordenPorAsignacion = new Map((asignaciones || []).map((a: any) => [a.id, a.orden_ruta ?? Number.MAX_SAFE_INTEGER]));
+      grouped['Por visitar'].sort((a, b) => (ordenPorAsignacion.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (ordenPorAsignacion.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+        || String(a.created_at || '').localeCompare(String(b.created_at || '')));
       setAssignments(grouped);
     } catch (error) {
       console.error('Error fetching asignaciones:', error);
@@ -1101,6 +1107,7 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
         {/* Título */}
         <div>
           <h2 className="text-xl md:text-2xl font-bold">Mis Clientes Asignados</h2>
+          <DatosAl />
           <p className="text-sm text-muted-foreground">
             {viewMode === 'kanban'
               ? 'Toca un cliente para ver detalles'
@@ -1433,7 +1440,7 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
                       <div>
                         <p className="text-xs text-muted-foreground">Total vendido</p>
                         <p className="text-lg font-bold">
-                          ${Number(selectedCliente.monto_total_historico).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                          {formatMonto(selectedCliente.monto_total_historico)}
                         </p>
                       </div>
                     </div>
@@ -1444,7 +1451,7 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
                       <div>
                         <p className="text-xs text-muted-foreground">Ticket promedio</p>
                         <p className="text-lg font-bold">
-                          ${Number(selectedCliente.ticket_promedio).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                          {formatMonto(selectedCliente.ticket_promedio)}
                         </p>
                       </div>
                     </div>

@@ -1,5 +1,5 @@
 import { allClients, beginImport } from "../_shared/import-batch.ts";
-import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates } from "../_shared/import-values.ts";
+import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates, repararCodificacion } from "../_shared/import-values.ts";
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
 
 /**
@@ -92,7 +92,7 @@ const isEmpty = (v: any): boolean => {
   return s === '' || PLACEHOLDERS.has(s.toUpperCase());
 };
 
-const toStr = (v: any): string | null => (isEmpty(v) ? null : String(v).trim());
+const toStr = (v: any): string | null => (isEmpty(v) ? null : repararCodificacion(String(v)).trim());
 
 const toFloatCoord = coordinateNumber;
 
