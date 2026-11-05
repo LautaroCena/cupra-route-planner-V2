@@ -21,12 +21,19 @@ export async function aiChat(body: AiChatBody): Promise<AiChatResult> {
     return { ok: false, status: 0, data: null, errorText: "No hay GEMINI_API_KEY configurada", proveedor: "ninguno" };
   }
   try {
-    const res = await fetch(GEMINI_URL, {
+    const pedir = () => fetch(GEMINI_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ ...body, model: Deno.env.get("GEMINI_MODEL") || MODELO_IA }),
       signal: AbortSignal.timeout(20_000),
     });
+    let res = await pedir();
+    // Un 503 es saturación pasajera de Google: se reintenta una vez antes de usar el respaldo.
+    if (res.status === 503) {
+      await res.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      res = await pedir();
+    }
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
       console.error(`[ai-chat] Gemini ${res.status}: ${errorText.slice(0, 500)}`);
