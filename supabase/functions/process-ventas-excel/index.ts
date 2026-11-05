@@ -1,5 +1,6 @@
 import { allClients, beginImport } from "../_shared/import-batch.ts";
 import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates, repararCodificacion } from "../_shared/import-values.ts";
+import { limpiarSinDato, mensajeFreno, MOTIVOS_RECHAZO, revisarVentas, type MotivoRechazo } from "../_shared/etl/ventas.ts";
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
 
 /**
@@ -125,10 +126,8 @@ const normalizeCuit = (v: any): string | null => {
   }
   const s = toStr(v);
   if (!s) return null;
-  if (/^-?\d+(\.\d+)?e[+-]?\d+$/i.test(s)) {
-    const n = Number(s);
-    if (Number.isFinite(n)) return String(Math.round(n));
-  }
+  // La notación científica perdió dígitos: no sirve para identificar a nadie.
+  if (/^-?\d+(\.\d+)?e[+-]?\d+$/i.test(s)) return null;
   const digits = s.replace(/\D/g, '');
   return digits || s;
 };
@@ -422,6 +421,14 @@ Deno.serve(async (req) => {
     if (started.response) return new Response(JSON.stringify(started.response), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     batchId = started.id;
 
+    const revision = revisarVentas(rawRows);
+    if (revision.frenar) {
+      return new Response(JSON.stringify({ success: false, error: mensajeFreno(revision), revision: { columnas_faltantes: revision.columnasFaltantes, pct_rechazadas: revision.pctRechazadas } }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 422,
+      });
+    }
+    const rechazadasPorIndice = new Set(revision.rechazadas.map(r => r.indice));
+
     const stageRows = async (sourceRows: Record<string, any>[], tipoFila: 'principal' | 'nota_credito') => {
       for (let i = 0; i < sourceRows.length; i += 500) {
         const stagingRows = sourceRows.slice(i, i + 500).map((payload, offset) => ({
@@ -561,7 +568,15 @@ Deno.serve(async (req) => {
       return { client_id, cuit_dni, razon_social, fantasia, cuitAmbiguo };
     };
 
-    for (const row of rows) {
+    const filasRechazadas: { fila: number; motivo: MotivoRechazo; texto: string; datos: Record<string, any> }[] = revision.rechazadas.map(r => ({
+      fila: r.fila, motivo: r.motivo, texto: MOTIVOS_RECHAZO[r.motivo], datos: r.datos as Record<string, any>,
+    }));
+    for (const r of revision.rechazadas) {
+      filasDescartadas.push({ origen: 'venta', motivo: r.motivo, payload: r.datos as Record<string, any> });
+    }
+
+    for (const [indice, row] of rows.entries()) {
+      if (rechazadasPorIndice.has(indice)) continue;
       const identidad = resolverIdentidad(row);
       const { cuit_dni, razon_social, fantasia } = identidad;
       const client_id = identidad.client_id;
@@ -569,15 +584,14 @@ Deno.serve(async (req) => {
 
       const ticket = toStr(getFieldValue(row, ['Ticket', 'ticket', 'Comprobante', 'comprobante']));
       const letra = toStr(getFieldValue(row, ['Letra', 'letra']));
-      const fecha_raw = getFieldValue(row, ['Fecha Emisión', 'Fecha Emision', 'fecha_emision', 'Fecha', 'fecha']);
-      const fecha_iso = parseDate(fecha_raw);
-      const cajas = parseNumericValue(getFieldValue(row, ['Cajas', 'cajas', 'Cantidad', 'cantidad']));
+      const fecha_iso = revision.fechas[indice];
+      const cajas = revision.cantidades[indice];
+      const esNC = revision.notasCredito[indice];
       const codigo_producto = toStr(getFieldValue(row, ['Código Producto', 'Codigo Producto', 'codigo_producto', 'Código', 'Codigo']));
       const producto = toStr(getFieldValue(row, ['Nombre', 'nombre', 'Producto', 'producto', 'Descripción', 'Descripcion', 'Etiqueta']));
       const marca = toStr(getFieldValue(row, ['Marca', 'marca']));
-      // El informe nuevo puede traer el vendedor vacío y el nombre en "Operador"
-      const vendedor = toStr(getFieldValue(row, ['Vendedor', 'vendedor']))
-        || toStr(getFieldValue(row, ['Operador', 'operador']));
+      // "Operador" es quien cargó el comprobante: nunca se usa como vendedor.
+      const vendedor = toStr(getFieldValue(row, ['Vendedor', 'vendedor']));
 
       const telefono = toStr(getFieldValue(row, ['Teléfono', 'Telefono', 'telefono']));
       const celular = toStr(getFieldValue(row, ['Celular', 'celular']));
@@ -587,10 +601,9 @@ Deno.serve(async (req) => {
       const numeroCalleRaw = toStr(getFieldValue(row, ['Número', 'Numero', 'numero', 'Altura', 'Nro', 'N°']));
       const codigoPostalRaw = toStr(getFieldValue(row, ['Código Postal', 'Codigo Postal', 'CP', 'cp', 'codigo_postal']));
       const direccion = joinStreet(calleRaw, numeroCalleRaw);
-      const ciudad_raw = toStr(getFieldValue(row, ['Ciudad', 'ciudad', 'Localidad', 'localidad']));
-      const provincia_raw = toStr(getFieldValue(row, ['Provincia', 'provincia']));
+      const { ciudad: ciudad_raw, provincia: provincia_raw } = revision.ubicaciones[indice];
       const pais = toStr(getFieldValue(row, ['País', 'Pais', 'pais']));
-      const categorias = toStr(getFieldValue(row, ['Categorías', 'Categorias', 'categorias', 'Categorías Cliente', 'Categorias Cliente']));
+      const categorias = limpiarSinDato(getFieldValue(row, ['Categorías', 'Categorias', 'categorias', 'Categorías Cliente', 'Categorias Cliente']));
       const facturacion = parseNumericValue(getFieldValue(row, FACTURACION_FIELD_NAMES));
       if (facturacion === null || facturacion === undefined) facturacionNullCount++;
       const bonificacion = parseNumericValue(getFieldValue(row, BONIFICACION_FIELD_NAMES));
@@ -599,6 +612,7 @@ Deno.serve(async (req) => {
         ventasSinClientId += 1;
         descartados.push({ cuit_dni, razon_social });
         filasDescartadas.push({ origen: 'venta', motivo: 'sin_identidad_cliente', payload: row });
+        filasRechazadas.push({ fila: Number(row.__fila_excel) || indice + 2, motivo: 'sin_cliente', texto: MOTIVOS_RECHAZO.sin_cliente, datos: row });
         continue;
       }
 
@@ -607,11 +621,12 @@ Deno.serve(async (req) => {
         client_id,
         ticket, letra, fecha_emision: fecha_iso, cuit_dni, razon_social, fantasia,
         cajas, codigo_producto, nombre: producto, marca,
-        facturacion_ars: facturacion === null || facturacion === undefined ? (sinImportes ? null : 0) : facturacion,
+        // Sin importe es desconocido, nunca $0. Una nota de crédito resta.
+        facturacion_ars: facturacion === null || facturacion === undefined ? null : (esNC ? -Math.abs(facturacion) : facturacion),
         bonificacion,
         vendedor, telefono, celular, correo, direccion, ciudad: ciudad_raw,
         provincia: provincia_raw, pais, categorias,
-        tipo_comprobante: 'venta',
+        tipo_comprobante: esNC ? 'nota_credito' : 'venta',
       });
 
 
@@ -721,6 +736,7 @@ Deno.serve(async (req) => {
         if (!base) {
           notasCreditoSinMatch++;
           filasDescartadas.push({ origen: 'nota_credito', motivo: 'cliente_no_conciliado', payload: row });
+          filasRechazadas.push({ fila: Number(row.__fila_excel) || 0, motivo: 'cliente_no_conciliado', texto: MOTIVOS_RECHAZO.cliente_no_conciliado, datos: row });
           continue;
         }
 
@@ -732,6 +748,7 @@ Deno.serve(async (req) => {
         if (importe === null || importe === undefined) {
           notasCreditoSinImporte++;
           filasDescartadas.push({ origen: 'nota_credito', motivo: 'sin_importe', payload: row });
+          filasRechazadas.push({ fila: Number(row.__fila_excel) || 0, motivo: 'sin_importe', texto: MOTIVOS_RECHAZO.sin_importe, datos: row });
           continue;
         }
         const monto = -Math.abs(importe);
@@ -772,13 +789,20 @@ Deno.serve(async (req) => {
       console.log(`⚠️ ${facturacionNullCount} filas con facturación null (columna: ${facturacionColumnResolved})`);
     }
 
-    // La revisión debe poder corregir cualquier fila inválida antes de aplicar el lote.
-    if (ventasSinClientId || (facturacionNullCount && !sinImportes) || notasCreditoSinMatch || notasCreditoSinImporte) {
-      throw new Error(`Carga rechazada: ${ventasSinClientId} ventas sin cliente inequívoco, ${facturacionNullCount} sin importe, ${notasCreditoSinMatch} notas de crédito sin cliente y ${notasCreditoSinImporte} sin importe. No se modificó nada.`);
+    // Una nota de crédito de hoja aparte sin comprobante o fecha tampoco se puede identificar.
+    for (let i = ventasRaw.length - 1; i >= 0; i--) {
+      const v = ventasRaw[i];
+      if (v.cajas !== null && !Number.isInteger(v.cajas)) v.cajas = null;
+      if (v.ticket && v.fecha_emision) continue;
+      const motivo: MotivoRechazo = v.ticket ? 'fecha_invalida' : 'sin_ticket';
+      filasRechazadas.push({ fila: 0, motivo, texto: MOTIVOS_RECHAZO[motivo], datos: v });
+      ventasRaw.splice(i, 1);
     }
-
-    const invalidRows = ventasRaw.filter(v => !v.ticket || !v.fecha_emision || v.cajas !== null && !Number.isInteger(v.cajas));
-    if (invalidRows.length) throw new Error(`${invalidRows.length} filas tienen fecha, comprobante o cantidad de cajas inválidos. No se modificó nada.`);
+    const totalFilasArchivo = rawRows.length + rawNotasCredito.length;
+    const pctRechazadasTotal = totalFilasArchivo ? Math.round((filasRechazadas.length / totalFilasArchivo) * 1000) / 10 : 0;
+    if (pctRechazadasTotal > 5) {
+      throw new Error(`Se rechazarían ${filasRechazadas.length} de ${totalFilasArchivo} filas (${pctRechazadasTotal}%), más del 5% permitido. Suele indicar columnas mal leídas. No se modificó nada.`);
+    }
 
     // ============ FASE 1b: Numerar renglones (OT8-fix, ya NO se fusiona nada) ============
     const renglonStats = asignarRenglones(ventasRaw);
@@ -1026,9 +1050,8 @@ Deno.serve(async (req) => {
     // ============ FASE 4: Upsert clientes PRIMERO (para satisfacer FK de ventas) ============
     const results = { ventas_procesadas: 0, ventas_errores: 0, clientes_actualizados: 0, clientes_errores: 0, errores: [] as string[] };
 
-    if (ventasSinClientId > 0) {
-      results.ventas_errores += ventasSinClientId;
-      results.errores.push(`Filas omitidas sin identidad de cliente resoluble: ${ventasSinClientId}`);
+    if (filasRechazadas.length > 0) {
+      results.errores.push(`Filas rechazadas: ${filasRechazadas.length}. El resto se cargó. Descargalas, corregilas y volvé a subirlas: no se duplica nada.`);
     }
     if (ventasCuitAmbiguo > 0) {
       results.errores.push(`Filas con CUIT duplicado en el maestro y nombre sin coincidencia: ${ventasCuitAmbiguo}`);
@@ -1047,6 +1070,7 @@ Deno.serve(async (req) => {
     if (saveError) { const err: any = new Error(saveError.message); err.previa = previaRango; throw err; }
     committedResponse = saved;
     Object.assign(results, saved.results);
+    results.ventas_errores = filasRechazadas.length;
     const coordenadasGuardadas = saved.results.coordenadas_actualizadas;
     const rangoCarga = { ...(previaRango || {}), ...(saved.rango || {}), modo: replaceExisting ? 'rango' : 'agregar' };
 
@@ -1179,9 +1203,24 @@ Deno.serve(async (req) => {
     if (cleanupError) console.error('No se pudo limpiar staging:', cleanupError.message);
 
 
+    // Hasta el 5% de 50.000 filas, con su contenido original para poder corregirlas.
+    const { data: perfiles } = await supabase.from('profiles').select('nombre');
+    const clavePersona = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+    const nombresPerfil = new Set((perfiles || []).map((p: any) => clavePersona(p.nombre)));
+    const validacion = {
+      vendedores_sin_usuario: vendedorBreakdown.map(v => v.vendedor).filter(v => v !== 'SIN VENDEDOR' && !nombresPerfil.has(clavePersona(v))),
+      clientes_sin_coordenadas: Math.max(0, totalClientesUnicos - coordsPorCliente.size),
+      filas_rechazadas: filasRechazadas.length,
+      pct_rechazadas: pctRechazadasTotal,
+      rechazadas: filasRechazadas.sort((a, b) => a.fila - b.fila),
+      avisos: revision.avisos,
+      documentos: revision.documentos.reduce((acc, d) => { acc[d.tipo] = (acc[d.tipo] || 0) + 1; return acc; }, {} as Record<string, number>),
+      notas_credito_en_ventas: revision.notasCredito.filter(Boolean).length,
+    };
     const responseBody = {
       success: true,
       batch_id: batchId,
+      validacion,
       results,
       calidad,
       reconciliacion,

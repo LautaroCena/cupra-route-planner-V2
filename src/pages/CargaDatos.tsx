@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { isAssignorLike, canViewSalesDashboard } from "@/lib/roles";
 import AppNav from "@/components/AppNav";
 import type { Session } from "@supabase/supabase-js";
@@ -24,9 +24,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import cupraLogo from "@/assets/cupra-logo-new.png";
-import { parseImportWorkbook, type ImportSheet } from "@/lib/excelImport";
+import { parseImportWorkbook, type ImportSheet, descargarFilasRechazadas } from "@/lib/excelImport";
 import { formatMonto, toTitleCase } from "@/lib/format";
 import { cargarFechaCorte } from "@/lib/fechaCorte";
+import { MOTIVOS_RECHAZO, mensajeFreno, revisarVentas, type ResumenAviso } from "../../supabase/functions/_shared/etl/ventas";
 
 type Step = "upload" | "preview" | "processing" | "done";
 type FileKind = "ventas" | "maestro" | "prospectos";
@@ -217,6 +218,14 @@ const CargaDatos = () => {
   // Geocoding state
   const [pendingGeocount, setPendingGeocount] = useState<number | null>(null);
   const [totalClientes, setTotalClientes] = useState<number | null>(null);
+  const [validacion, setValidacion] = useState<{
+    filas_rechazadas: number;
+    pct_rechazadas: number;
+    rechazadas: { fila: number; texto: string; datos: Record<string, unknown> }[];
+    avisos: ResumenAviso[];
+    vendedores_sin_usuario: string[];
+    clientes_sin_coordenadas: number;
+  } | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeType, setGeocodeType] = useState<"clientes" | "prospectos">("clientes");
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResults | null>(null);
@@ -239,6 +248,9 @@ const CargaDatos = () => {
         });
     }
   }, [session, navigate]);
+
+  // Se revisa antes de cargar, con las mismas reglas que aplica la función.
+  const revisionPrevia = useMemo(() => (fileKind === "ventas" && rows.length ? revisarVentas(rows) : null), [fileKind, rows]);
 
   const fetchPendingGeocount = useCallback(async () => {
     const { data, error } = await supabase.rpc("resumen_ubicaciones" as never);
@@ -384,6 +396,7 @@ const CargaDatos = () => {
       if (error) { const details = await error.context?.json?.().catch(() => null); throw new Error(details?.error || error.message || "Error al procesar"); }
       if (!data?.success) throw new Error(data?.error || "Error desconocido");
       setResults(data.results);
+      setValidacion(data.validacion || null);
       cargarFechaCorte();
       setBatchId(data.batch_id || null);
       // TAREA 7, 9, 10: Guardar datos extendidos
@@ -622,6 +635,25 @@ const CargaDatos = () => {
                 </div>
               </CardContent>
             </Card>
+            {revisionPrevia && (
+              <div className={`rounded-lg border p-3 text-xs space-y-1.5 ${revisionPrevia.frenar ? "border-destructive/40 bg-destructive/10" : "border-border bg-muted/30"}`}>
+                {revisionPrevia.frenar ? (
+                  <p className="font-medium text-destructive">{mensajeFreno(revisionPrevia)}</p>
+                ) : (
+                  <p className="font-medium text-foreground">
+                    Se cargarán {(revisionPrevia.total - revisionPrevia.rechazadas.length).toLocaleString()} de {revisionPrevia.total.toLocaleString()} filas.
+                    {revisionPrevia.rechazadas.length > 0 && ` ${revisionPrevia.rechazadas.length} se rechazan y vas a poder descargarlas.`}
+                  </p>
+                )}
+                {Object.entries(revisionPrevia.rechazadas.reduce<Record<string, number>>((acc, r) => { acc[r.motivo] = (acc[r.motivo] || 0) + 1; return acc; }, {})).map(([motivo, cantidad]) => (
+                  <p key={motivo} className="text-destructive">Rechazo · {MOTIVOS_RECHAZO[motivo as keyof typeof MOTIVOS_RECHAZO]}: {cantidad.toLocaleString()}</p>
+                ))}
+                {revisionPrevia.avisos.map((a) => (
+                  <p key={a.tipo} className="text-muted-foreground">Aviso · {a.texto}: {a.cantidad.toLocaleString()}</p>
+                ))}
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-2">
                 {fileKind === "ventas" ? (
@@ -659,7 +691,7 @@ const CargaDatos = () => {
               </div>
               <div className="flex gap-3">
                 <Button variant="outline" onClick={reset} disabled={isGeocoding}>Cancelar</Button>
-                <Button onClick={() => handleProcess()} disabled={!sheetsReviewed || !rows.length}>
+                <Button onClick={() => handleProcess()} disabled={!sheetsReviewed || !rows.length || Boolean(revisionPrevia?.frenar)}>
                   <Upload className="h-4 w-4 mr-1.5" />
                   Procesar {rows.length.toLocaleString()} filas
                 </Button>
@@ -898,6 +930,39 @@ const CargaDatos = () => {
                 )}
               </CardContent>
             </Card>
+
+            {validacion && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                    Revisión de la carga
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs">
+                  {validacion.filas_rechazadas > 0 ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3">
+                      <p className="text-destructive font-medium">{validacion.filas_rechazadas.toLocaleString()} filas rechazadas ({validacion.pct_rechazadas}%). El resto se cargó.</p>
+                      <Button size="sm" variant="outline" onClick={() => descargarFilasRechazadas(validacion.rechazadas)}>
+                        Descargar filas rechazadas
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-foreground font-medium">No se rechazó ninguna fila.</p>
+                  )}
+                  {validacion.filas_rechazadas > 0 && (
+                    <p className="text-muted-foreground">Corregilas y volvé a subir ese archivo con «Reemplazar» desmarcado: se agregan sin duplicar lo ya cargado.</p>
+                  )}
+                  {validacion.avisos.map((a) => (
+                    <p key={a.tipo} className="text-muted-foreground">Aviso · {a.texto}: {a.cantidad.toLocaleString()}</p>
+                  ))}
+                  <p className="text-muted-foreground">Clientes sin coordenadas: {validacion.clientes_sin_coordenadas.toLocaleString()}</p>
+                  {validacion.vendedores_sin_usuario.length > 0 && (
+                    <p className="text-muted-foreground">Vendedores sin usuario en la app: {validacion.vendedores_sin_usuario.map(toTitleCase).join(", ")}</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* TAREA 9: Reconciliación */}
             {reconciliacion?.rango && (

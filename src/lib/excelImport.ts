@@ -16,6 +16,17 @@ function classify(columns: string[], name: string): ImportKind | null {
   return null;
 }
 
+/** Lista lista para corregir y volver a subir: el contenido original, más la fila y el motivo. */
+export function descargarFilasRechazadas(filas: { fila: number; texto: string; datos: SpreadsheetRow }[], nombre = "filas-rechazadas.xlsx"): void {
+  const hoja = XLSX.utils.json_to_sheet(filas.map(({ fila, texto, datos }) => {
+    const { __fila_excel: _numero, ...original } = datos;
+    return { ...original, "Fila original": fila || "", "Motivo de rechazo": texto };
+  }));
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, "Rechazadas");
+  XLSX.writeFile(libro, nombre);
+}
+
 export function parseImportWorkbook(buffer: ArrayBuffer): { sheets: ImportSheet[]; ignored: string[] } {
   const workbook = XLSX.read(buffer, { type: "array", cellDates: false, cellNF: true });
   const date1904 = Boolean(workbook.Workbook?.WBProps?.date1904);

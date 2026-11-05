@@ -80,7 +80,10 @@ async function harness() {
   const file=join(dir,'handler.mjs');
   await writeFile(file,ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);
   await import(pathToFileURL(file).href);
-  return {db,rpcCalls,async run(rows,requestId=crypto.randomUUID()) {
+  return {db,rpcCalls,async raw(rows,requestId=crypto.randomUUID()) {
+    const response=await handler(new Request('http://localhost/import-test',{method:'POST',headers:{Authorization:'Bearer local-test-only','Content-Type':'application/json'},body:JSON.stringify({rows,requestId,replaceExisting:false})}));
+    return {status:response.status,body:await response.json()};
+  },async run(rows,requestId=crypto.randomUUID()) {
     const response=await handler(new Request('http://localhost/import-test',{method:'POST',headers:{Authorization:'Bearer local-test-only','Content-Type':'application/json'},body:JSON.stringify({rows,requestId,replaceExisting:true})}));
     const result=await response.json();
     assert.equal(response.status,200,result.error);
@@ -98,6 +101,63 @@ test('el caché distingue hojas con igual cantidad de columnas y encabezados int
     ]);
     const {rows}=await h.db.query('SELECT count(*)::int AS rows,sum(facturacion_ars) AS total FROM ventas_cupra');
     assert.equal(rows[0].rows,2); assert.equal(Number(rows[0].total),300);
+  } finally { await h.close(); }
+});
+
+const CUIT='20123456786';
+const linea=(extra={})=>({Ticket:'FV1',Letra:'A','Fecha Emisión':'2026-09-30','Razón Social':'Comercio','CUIT / DNI':CUIT,'Código Producto':'P1',Cantidad:1,'Precio Total Final':100,Vendedor:'Vendedora',...extra});
+
+test('una fila mala se rechaza sola, y corregirla no duplica lo ya cargado', {timeout:60000}, async () => {
+  const h=await harness();
+  try {
+    const buenas=Array.from({length:30},(_,i)=>linea({Ticket:'FV'+i,__fila_excel:i+2}));
+    const mala=linea({Ticket:'FV99','Fecha Emisión':'2056-01-01',__fila_excel:40});
+    const {status,body}=await h.raw([...buenas,mala]);
+    assert.equal(status,200,body.error);
+    assert.equal(body.validacion.filas_rechazadas,1);
+    assert.equal(body.validacion.rechazadas[0].fila,40);
+    assert.equal(body.validacion.rechazadas[0].motivo,'fecha_invalida');
+    const cuenta=async()=>(await h.db.query('SELECT count(*)::int AS n FROM ventas_cupra')).rows[0].n;
+    assert.equal(await cuenta(),30);
+    const corregida=await h.raw([{...mala,'Fecha Emisión':'2026-09-29'}]);
+    assert.equal(corregida.status,200,corregida.body.error);
+    assert.equal(await cuenta(),31);
+    const repetida=await h.raw([...buenas,{...mala,'Fecha Emisión':'2026-09-29'}]);
+    assert.equal(repetida.status,200,repetida.body.error);
+    assert.equal(await cuenta(),31,'volver a subir no duplica');
+  } finally { await h.close(); }
+});
+
+test('frena el archivo sin tocar nada si se rechaza más del 5% o falta una columna', {timeout:60000}, async () => {
+  const h=await harness();
+  try {
+    const filas=Array.from({length:10},(_,i)=>linea({Ticket:'FV'+i,'Fecha Emisión':i<2?'ayer':'2026-09-30'}));
+    const frenado=await h.raw(filas);
+    assert.equal(frenado.status,422);
+    assert.match(frenado.body.error,/No se modificó nada/);
+    const sinColumna=await h.raw([{Cliente:'A',Cantidad:1}]);
+    assert.equal(sinColumna.status,422);
+    assert.match(sinColumna.body.error,/columna indispensable/);
+    assert.equal((await h.db.query('SELECT count(*)::int AS n FROM ventas_cupra')).rows[0].n,0);
+  } finally { await h.close(); }
+});
+
+test('importe desconocido no es $0, Operador no es vendedor y las líneas NC restan', {timeout:60000}, async () => {
+  const h=await harness();
+  try {
+    const {status,body}=await h.raw([
+      linea({Ticket:'FV1','Precio Total Final':null,Vendedor:null,Operador:'Administración'}),
+      linea({Ticket:'FV2'}),
+      linea({Ticket:'NC1',Letra:'NC',Cantidad:-1,'Precio Total Final':40}),
+    ]);
+    assert.equal(status,200,body.error);
+    const {rows}=await h.db.query("SELECT ticket,facturacion_ars,vendedor,tipo_comprobante FROM ventas_cupra ORDER BY ticket");
+    const fila=t=>rows.find(r=>r.ticket===t);
+    assert.equal(fila('FV1').facturacion_ars,null);
+    assert.equal(fila('FV1').vendedor,null);
+    assert.equal(fila('NC1').tipo_comprobante,'nota_credito');
+    assert.equal(Number(fila('NC1').facturacion_ars),-40);
+    assert.ok(body.validacion.avisos.some(a=>a.tipo==='importe_desconocido'));
   } finally { await h.close(); }
 });
 
