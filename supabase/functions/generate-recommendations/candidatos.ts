@@ -5,6 +5,7 @@
 
 import { type AnchorPoint, calcularDistanciaKm } from "./geo-hotspot.ts";
 import { recuperacion } from "../_shared/valor.ts";
+import { factoresProspecto } from "../_shared/prospecto-valor.ts";
 import {
   alertaNotaCredito,
   esProspectoComercialmenteValido,
@@ -376,7 +377,7 @@ export function scoreProspects(
       prioridad_comercial: Math.round(score_comercial * 0.4),
       origen: "base",
       // Un prospecto no se recupera: no compró nunca. Su potencial sale de lo que se sabe del lugar.
-      factores: { recuperacion: 0, potencial: score_comercial / 100 },
+      factores: factoresProspecto(p),
       locales: [{ lat, lng: long, place_id: p.place_id, direccion: p.direccion ?? null, barrio: p.barrio ?? null }],
     });
   }

@@ -1,4 +1,5 @@
-import { seleccionarCercanos } from "../_shared/compact-route.ts";
+import { seleccionarPorValor } from "../_shared/seleccion.ts";
+import { factoresProspecto } from "../_shared/prospecto-valor.ts";
 import { addressKey } from "../_shared/prospect-identity.ts";
 import { googleMapsFetch, type GooglePlace, PLACES_FIELD_MASK } from "../_shared/google-maps.ts";
 import { centroClientes, coordenadaMapaValida, distanciaAlCliente, RADIOS_BUSQUEDA_MAPA, type PuntoMapa } from "../_shared/map-selection.ts";
@@ -134,9 +135,10 @@ export async function buscarComplementoMapa(opts: BusquedaMapa) {
     catch (error) { if (error instanceof ProspectPersistenceError) throw error; avisos.push("No se pudo terminar de recorrer la zona en Google. Podés reintentar la búsqueda."); }
   }
   const candidatos = validos().slice(0, 100);
-  const fijos=opts.clientes.map((c,i)=>({...c,id:`fijo:${i}`}));
-  const seleccion=seleccionarCercanos(centro,candidatos.map(p=>({id:p.place_id,lat:p.latitud!,lng:p.longitud!})),fijos,opts.objetivo+fijos.length);
-  const elegidos=seleccion.flatMap(s=>candidatos.filter(p=>p.place_id===s.id));
+  // Igual que el motor: se completa por valor (potencial del lugar y cuánto alarga la ruta).
+  const seleccion=seleccionarPorValor(centro,candidatos.map(p=>({id:p.place_id,factores:factoresProspecto(p),locales:[{lat:p.latitud!,lng:p.longitud!}]})),
+    distanciaKm,distanciaKm,{limite:opts.objetivo+opts.clientes.length},opts.clientes);
+  const elegidos=seleccion.elegidos.flatMap(s=>candidatos.filter(p=>p.place_id===s.id));
   return {centro,candidatos,elegidos,radio_m:Math.round(radio*1000),avisos};
 }
 

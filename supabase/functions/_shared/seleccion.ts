@@ -179,6 +179,8 @@ export function seleccionarPorValor(
   dist: Distancia,
   distRecta: Distancia,
   parametros: Partial<ParametrosSeleccion> = {},
+  /** Visitas ya elegidas a mano (ruta desde el mapa): ocupan lugar y la ruta las incluye. */
+  fijos: Punto[] = [],
 ): ResultadoSeleccion {
   const p = { ...PARAMETROS_POR_DEFECTO, ...parametros, pesos: { ...PARAMETROS_POR_DEFECTO.pesos, ...parametros.pesos } };
   const avisos: string[] = [];
@@ -192,10 +194,11 @@ export function seleccionarPorValor(
   })).filter((x) => x.adentro.length || x.franja.length);
 
   // 1) Dentro del radio, de a uno: el de mayor valor con su recorrido en ese momento.
-  let ruta: Punto[] = [centro];
+  let ruta: Punto[] = [centro, ...ordenExacto(fijos, dist, centro)];
+  const libres = Math.max(0, p.limite - fijos.length);
   const elegidos: Elegido[] = [];
   let restantes = preparados.filter((x) => x.adentro.length);
-  while (elegidos.length < p.limite && restantes.length) {
+  while (elegidos.length < libres && restantes.length) {
     const opciones = restantes.map((x) => {
       let local = x.adentro[0], extra = Infinity;
       for (const l of x.adentro) {
@@ -227,22 +230,22 @@ export function seleccionarPorValor(
   let cambios = 0;
   for (const f of franja) {
     if (cambios >= p.maxCambiosFranja) break;
-    const lleno = elegidos.length >= p.limite;
+    const lleno = elegidos.length >= libres;
     const peor = lleno ? elegidos.reduce((a, b) => (b.valorSinRecorrido < a.valorSinRecorrido ? b : a)) : null;
     if (peor && f.valor <= peor.valorSinRecorrido) continue;
     const base = elegidos.filter((e) => e !== peor);
     const local = f.x.franja.reduce((a, b) =>
-      costoInsercion([centro, ...base.map((e) => e.local)], b, dist) < costoInsercion([centro, ...base.map((e) => e.local)], a, dist) ? b : a);
-    const prueba = ordenExacto([...base.map((e) => e.local), local], dist, centro);
+      costoInsercion([centro, ...fijos, ...base.map((e) => e.local)], b, dist) < costoInsercion([centro, ...fijos, ...base.map((e) => e.local)], a, dist) ? b : a);
+    const prueba = ordenExacto([...fijos, ...base.map((e) => e.local), local], dist, centro);
     if (largo([centro, ...prueba], dist) > p.topeKm + 1e-9) continue;
     if (peor) elegidos.splice(elegidos.indexOf(peor), 1);
     elegidos.push({ id: f.x.c.id, local, valorSinRecorrido: sinRecorrido(f.x.c), valor: f.valor, enFranja: true });
     cambios++;
   }
 
-  if (elegidos.length < p.limite) {
-    avisos.push(`Hay ${elegidos.length} visitas que valen la pena en la zona; no se completan las ${p.limite}.`);
+  if (elegidos.length + fijos.length < p.limite) {
+    avisos.push(`Hay ${elegidos.length + fijos.length} visitas que valen la pena en la zona; no se completan las ${p.limite}.`);
   }
-  const orden = ordenExacto(elegidos.map((e) => ({ ...e.local, e })), dist, centro).map((x) => x.e);
-  return { elegidos: orden, km: largo([centro, ...orden.map((e) => e.local)], dist), avisos };
+  const completo = ordenExacto([...fijos.map((f) => ({ ...f, e: null as Elegido | null })), ...elegidos.map((e) => ({ ...e.local, e }))], dist, centro);
+  return { elegidos: completo.flatMap((x) => (x.e ? [x.e] : [])), km: largo([centro, ...completo], dist), avisos };
 }

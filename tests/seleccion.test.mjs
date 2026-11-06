@@ -65,3 +65,10 @@ test('parámetros guardados: se usa lo válido y lo demás queda por defecto', a
   assert.deepEqual(parametrosValidos(null), {});
   assert.deepEqual(parametrosValidos({ limite: 20 }), {});
 });
+
+test('con visitas fijas (ruta desde el mapa) completa los lugares libres y las cuenta en el recorrido', () => {
+  const fijos = [P(0.1, 0), P(0.2, 0)];
+  const r = seleccionarPorValor(centro, [C('a', 0.3, 0), C('b', -0.3, 0), C('c', 0, 0.3)], dist, dist, { limite: 4 }, fijos);
+  assert.equal(r.elegidos.length, 2);
+  assert.ok(r.km >= 0.2);
+});

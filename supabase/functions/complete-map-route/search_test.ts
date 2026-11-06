@@ -42,9 +42,9 @@ Deno.test('mapa: primero busca en 150 m, consulta Google aunque haya suficientes
   const calls:number[]=[];const near=Array.from({length:4},(_,i)=>prospect(`g${i}`,30+i*15));
   const result=await buscarComplementoMapa({...opts(Array.from({length:8},(_,i)=>prospect(`base${i}`,800+i*10))),
     descubrir:async(center,radius,types)=>{same(center,{lat:-34.6,lng:-58.4});calls.push(radius);ok(types.includes('hotel'));return near;}});
-  same(calls,[.15]);same(result.elegidos.map(p=>p.place_id),near.map(p=>p.place_id));eq(result.radio_m,150);
+  same(calls,[.15]);same(result.elegidos.map(p=>p.place_id).sort(),near.map(p=>p.place_id).sort());eq(result.radio_m,150);
 });
-Deno.test('mapa: expande sólo lo necesario y el orden lo decide la cercanía, no las reseñas',async()=>{
+Deno.test('mapa: expande sólo lo necesario; lo que queda lejos no entra por buenas reseñas',async()=>{
   const calls:number[]=[];const result=await buscarComplementoMapa({...opts([prospect('lejano',800,{rating:5,total_ratings:2000})],2),
     descubrir:async(_,radius)=>{calls.push(radius);return radius<.3?[prospect('cercano',90)]:[prospect('medio',220),prospect('cercano',90)];}});
   same(calls,[.15,.3]);same(result.elegidos.map(p=>p.place_id),['cercano','medio']);

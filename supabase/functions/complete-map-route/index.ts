@@ -1,5 +1,6 @@
 import { candidatoRegalos } from "../_shared/prospect-categories.ts";
-import { seleccionarCercanos } from "../_shared/compact-route.ts";
+import { seleccionarPorValor } from "../_shared/seleccion.ts";
+import { factoresProspecto } from "../_shared/prospecto-valor.ts";
 import { authorize, corsHeaders, json, RequestError, failure, googleGeocode } from "../_shared/location-service.ts";
 import { hayGoogleMaps } from "../_shared/google-maps.ts";
 import { allClients } from "../_shared/import-batch.ts";
@@ -147,8 +148,9 @@ export async function handler(req: Request): Promise<Response> {
         && distanciaKm(centro, { lat: p!.latitud!, lng: p!.longitud! }) <= RADIO_RUTA_KM), centro);
     }
     const fijos=[...clientesPuntos.map(p=>({id:p.key,lat:p.lat,lng:p.lng})),...conservar.map(p=>({id:`P:${p.place_id}`,lat:p.latitud!,lng:p.longitud!}))];
-    const orden=seleccionarCercanos(centro,final.map(p=>({id:`P:${p.place_id}`,lat:p.latitud!,lng:p.longitud!})),fijos);
-    const seleccionados=orden.flatMap(p=>final.filter(f=>`P:${f.place_id}`===p.id));
+    const orden=seleccionarPorValor(centro,final.map(p=>({id:`P:${p.place_id}`,factores:factoresProspecto(p),locales:[{lat:p.latitud!,lng:p.longitud!}]})),
+      distanciaKm,distanciaKm,{limite:VISITAS_POR_DIA},fijos);
+    const seleccionados=orden.elegidos.flatMap(p=>final.filter(f=>`P:${f.place_id}`===p.id));
     return json({ success: true, centro, zona, radio_busqueda_m: result.radio_m,
       clientes: clientesPuntos, prospectos: final.map(p => puntoProspecto(p, clientesPuntos, centro)),
       elegidos: seleccionados.map(p => p.place_id), faltantes: objetivo - seleccionados.length,
