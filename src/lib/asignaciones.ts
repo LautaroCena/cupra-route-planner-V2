@@ -9,6 +9,8 @@ export interface VisitaParaAsignar {
   fecha_programada?: string | null;
   estado?: "Asignado" | "Por visitar";
   orden_ruta?: number | null;
+  /** Local de la cuenta a visitar; sin dato, el principal. */
+  client_place_id?: string | null;
 }
 
 /** Guardado transaccional: visitas, rotación y transferencia de cartera opcional. */

@@ -231,7 +231,9 @@ const AssignorDashboard = () => {
       abortControllerRef.current = null;
       const todas = data.recomendaciones || [];
       const idsUnicos = new Set(todas.map(r => r.es_prospecto ? r.prospecto_place_id : r.client_id));
-      if (todas.length !== selectedVendedoresData.ids.length * VISITAS_POR_DIA || idsUnicos.size !== todas.length) {
+      // Hasta 8 por vendedor: menos es válido cuando no hay 8 que valgan la pena (con aviso).
+      const porVendedor = (id: string) => todas.filter(r => r.vendedor_recomendado_id === id).length;
+      if (!todas.length || selectedVendedoresData.ids.some(id => porVendedor(id) > VISITAS_POR_DIA) || idsUnicos.size !== todas.length) {
         throw new Error('"error":"La generación recibida está incompleta o contiene repetidos. Reintentá; no se guardó ninguna asignación."');
       }
       for (const id of selectedVendedoresData.ids) {
@@ -263,7 +265,7 @@ const AssignorDashboard = () => {
           dias_sin_visita: rec.days_since_last_purchase || 0,
           latitud: rec.lat || null, longitud: rec.long || null,
           justificacion: rec.ai_reasoning, cuit_dni: rec.cuit_dni,
-          vendedores: rec.vendedores || [], client_id: rec.client_id,
+          vendedores: rec.vendedores || [], client_id: rec.client_id, client_place_id: rec.client_place_id ?? null,
           es_prospecto: rec.es_prospecto || false,
           prospecto_place_id: rec.prospecto_place_id,
           tipo_negocio: rec.factores_ia?.tipo_negocio, rating: rec.factores_ia?.rating,
@@ -374,7 +376,7 @@ const AssignorDashboard = () => {
         client_id?: string;
         prospecto_place_id?: string;
         es_prospecto: boolean;
-        origen_asignacion: string; orden_ruta?: number;
+        origen_asignacion: string; orden_ruta?: number; client_place_id?: string | null;
       }> = [];
       selected.forEach((rec) => {
         const vendedorId = rec.vendedor_recomendado_id;
@@ -394,6 +396,7 @@ const AssignorDashboard = () => {
             orden_ruta: siguienteOrden(vendedorId),
             vendedor_id: vendedorId,
             client_id: rec.client_id,
+            client_place_id: rec.client_place_id ?? null,
             es_prospecto: false,
             origen_asignacion: "asignador",
           });

@@ -266,9 +266,10 @@ Deno.test("si ningún cliente tiene vecinos suficientes, completa ocho prospecto
   assertEquals(r.porVendedor[0].cobertura.obtenido.prospectos,8);
 });
 
-Deno.test("Google no puede completar con un octavo destino a más de 1,5 km", async () => {
+Deno.test("Google no puede completar con un octavo destino a más de 1,6 km", async () => {
   const clientes = [cliente("v",10,0,0)];
-  const encontrados = [...Array.from({length:6},(_,i)=>prospecto(0.1*i,0)),prospecto(1.51,0)];
+  // A 1,61 km queda fuera incluso de la franja (1,5 a 1,6 km).
+  const encontrados = [...Array.from({length:6},(_,i)=>prospecto(0.1*i,0)),prospecto(1.61,0)];
   const radios: number[] = [];
   const r = await planificarRutas(armarInput({vendedores:["v"],clientes,prospectos:[]}),deps({descubrirEnGoogle: async (_lat,_lng,radio)=>{radios.push(radio);return encontrados;}}));
   assertEquals(r.porVendedor[0].elegidos.length,7);

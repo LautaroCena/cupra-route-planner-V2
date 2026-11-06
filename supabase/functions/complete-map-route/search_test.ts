@@ -11,11 +11,11 @@ Deno.test('mapa: el centro promedia todos los clientes y una pareja a 2,6 km pue
   const points=[client('1',-1300),client('2',1300)];
   same(centroClientes(points),center);eq(validarSeleccionMapa(points),null);
   ok(distanciaKm(points[0],points[1])>1.5);
-  eq(validarSeleccionMapa([client('1'),client('2',4000)]),'Hay destinos fuera del radio máximo de 1,5 km.');
+  eq(validarSeleccionMapa([client('1'),client('2',4000)]),'Hay destinos fuera del radio máximo de 1,5 km (1,6 km para uno solo).');
 });
 Deno.test('mapa: el prospecto no mueve el centro de los clientes',()=>{
-  const c=[client('1'),client('2')];const p=puntoProspecto(prospect('p',1600),c);
-  eq(validarSeleccionMapa([...c,p]),'Hay destinos fuera del radio máximo de 1,5 km.');
+  const c=[client('1'),client('2')];const p=puntoProspecto(prospect('p',1700),c);
+  eq(validarSeleccionMapa([...c,p]),'Hay destinos fuera del radio máximo de 1,5 km (1,6 km para uno solo).');
   eq(validarSeleccionMapa([p]),'Seleccioná primero al menos un cliente del vendedor.');
 });
 Deno.test('mapa: ocho únicos es condición de confirmación',()=>{
@@ -113,13 +113,13 @@ Deno.test('sin cartera: completa ocho prospectos sin clientes, con centro fijo d
   const route=result.elegidos.map(p=>puntoProspecto(p,[],center));
   eq(validarSeleccionMapa(route,true,center),null);eq(route[0].distancia_cliente_m,undefined);ok(Number.isFinite(route[0].distancia_centro_m));
 });
-Deno.test('sin cartera: no busca sin centro y no confirma siete ni destinos fuera de 1,5 km',async()=>{
+Deno.test('sin cartera: no busca sin centro y no confirma siete ni destinos fuera de 1,6 km',async()=>{
   await rejects(()=>buscarComplementoMapa({clientes:[],objetivo:8,base:[],rubros:[],pasaGate:()=>true}),/barrio/);
   const rows=Array.from({length:7},(_,i)=>prospect(`p${i}`,20+i*10));
   const result=await buscarComplementoMapa({clientes:[],centroZona:center,objetivo:8,base:[...rows,prospect('fuera',1510)],rubros:[],pasaGate:()=>true});
   eq(result.elegidos.length,7);eq(result.radio_m,1500);
   ok(validarSeleccionMapa(result.elegidos.map(p=>puntoProspecto(p,[],center)),true,center));
-  ok(validarSeleccionMapa([...rows,prospect('fuera',1510)].map(p=>puntoProspecto(p,[],center)),true,center));
+  ok(validarSeleccionMapa([...rows,prospect('fuera',1610)].map(p=>puntoProspecto(p,[],center)),true,center));
 });
 Deno.test('sin cartera: completar después de quitar uno busca sólo el faltante y respeta el descarte',async()=>{
   const result=await buscarComplementoMapa({clientes:[],centroZona:center,objetivo:1,base:[prospect('descartado',5),prospect('reemplazo',20)],rubros:[],pasaGate:p=>p.place_id!=='descartado'});

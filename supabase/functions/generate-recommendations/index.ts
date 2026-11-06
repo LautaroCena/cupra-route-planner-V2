@@ -34,6 +34,7 @@ import {
 } from "./candidatos.ts";
 import { type PlanVendedor, planificarRutas, VISITAS_POR_DIA } from "./planificador.ts";
 import { RADIO_RUTA_KM, errorRuta } from "../_shared/ruta.ts";
+import { basePotencial, potencial } from "../_shared/valor.ts";
 import { candidatoRegalos } from "../_shared/prospect-categories.ts";
 import { SolicitudInvalida, validarSolicitud } from "./solicitud.ts";
 import {
@@ -332,6 +333,14 @@ Deno.serve(async (req) => {
     const places = await fetchIn(clientesDeVendedores.map((c) => c.client_id), (chunk) =>
       db.from("client_places").select("*").eq("is_primary", true).in("client_id", chunk));
     places.forEach((p: any) => placesMap.set(p.client_id, p));
+    // Locales no principales: un cliente puede entrar a la ruta por cualquiera de ellos.
+    const localesMap = new Map<string, any[]>();
+    const secundarios = await fetchIn(clientesDeVendedores.map((c) => c.client_id), (chunk) =>
+      db.from("client_places").select("*").eq("is_primary", false).in("client_id", chunk));
+    secundarios.forEach((p: any) => localesMap.set(p.client_id, [...(localesMap.get(p.client_id) || []), p]));
+    // Potencial de cada cliente comparado con toda la base (_shared/valor.ts).
+    const baseDePotencial = basePotencial(clientesConVendedor);
+    for (const c of clientesDeVendedores) c.factor_potencial = potencial(c, baseDePotencial);
     // La provincia es un filtro estricto, también en las ampliaciones.
     if (provinciaFiltro) {
       for (const [vid, lista] of carteraTotal) {
@@ -450,6 +459,7 @@ Deno.serve(async (req) => {
       carteraEnZona,
       carteraTotal,
       placesMap,
+      localesMap,
       prospectosZona,
       feedbacksClientes,
       feedbacksProspectos,
@@ -495,7 +505,8 @@ Deno.serve(async (req) => {
       console.warn("GOOGLE_MAPS_API_KEY no configurada: no se buscan prospectos nuevos.");
     }
 
-    // Una respuesta exitosa SIEMPRE contiene ocho destinos por vendedor y respeta el radio.
+    // Hasta 8 por vendedor (menos, con aviso en la cobertura). Error solo si un vendedor
+    // queda sin visitas o algo rompe el radio.
     const incompletas = plan.porVendedor.filter(p => errorRuta(p.elegidos.map(c => ({
       id: c.client_id, lat: Number(c.lat), lng: Number(c.long),
     })), p.hotspot));
@@ -609,9 +620,13 @@ Deno.serve(async (req) => {
             score_comercial: cl.score_comercial,
             ciudades: cl.todas_ciudades || (cl.ciudad_principal ? [cl.ciudad_principal] : []),
             provincias: [place.provincia_principal || cl.provincia_principal].filter(Boolean),
-            barrio_principal: place.barrio_principal || cl.barrio_principal,
-            direccion_principal: place.direccion_principal || cl.direccion_principal,
-            google_maps_link: place.google_maps_link || null,
+            // El local en el que entró a la ruta, que puede no ser el principal.
+            client_place_id: c.client_place_id ?? null,
+            barrio_principal: c.barrio || place.barrio_principal || cl.barrio_principal,
+            direccion_principal: c.direccion || place.direccion_principal || cl.direccion_principal,
+            google_maps_link: c.client_place_id && c.client_place_id !== place.id
+              ? `https://www.google.com/maps/search/?api=1&query=${c.lat},${c.long}`
+              : place.google_maps_link || null,
             vendedores: cl.todos_vendedores || [],
             vendedor_principal: cl.vendedor_actual || cl.vendedor_principal,
             etiquetas: cl.etiquetas || [],
@@ -625,6 +640,7 @@ Deno.serve(async (req) => {
     const zonaTexto = dedupeBarrios([...barriosFinales, ...comunasFinales]).join(", ") || "la zona seleccionada";
     const estadosTexto: Record<string, string> = { ACTIVO: "activos", INACTIVO: "inactivos", PERDIDO: "perdidos", POTENCIAL: "potenciales" };
     const avisos: string[] = [];
+    for (const pv of plan.porVendedor) for (const aviso of pv.cobertura.avisos) avisos.push(`${pv.vendedor.nombre}: ${aviso}`);
     const errorGoogle = plan.porVendedor.find((p) => p.cobertura.error_google)?.cobertura.error_google;
     if (errorGoogle) avisos.push(`No se pudo buscar lugares nuevos en Google Maps (${errorGoogle}). Revisá la configuración o reintentá más tarde.`);
     else if (!hayGoogleMaps()) avisos.push("Google Maps no está configurado (falta GOOGLE_MAPS_API_KEY): solo se usan prospectos ya cargados.");

@@ -4,6 +4,7 @@
 // ============================================================
 
 import { type AnchorPoint, calcularDistanciaKm } from "./geo-hotspot.ts";
+import { recuperacion } from "../_shared/valor.ts";
 import {
   alertaNotaCredito,
   esProspectoComercialmenteValido,
@@ -25,6 +26,8 @@ export const MS_DIA = 24 * 60 * 60 * 1000;
 export interface RevisitInfo { dueAt: number; source: string; }
 
 export interface ScoreOptions {
+  /** Todos los locales de cada cliente (client_places), además del principal. */
+  localesMap?: Map<string, any[]>;
   /** Días mínimos desde la última asignación (0 = sin pausa). */
   cooldownDays?: number;
   revisitMap?: Map<string, RevisitInfo>;
@@ -69,6 +72,12 @@ export interface ScoredCandidate {
   /** Cómo entró a la ruta: base, búsqueda en vivo en Google, o ampliación de último recurso. */
   origen?: "cartera" | "base" | "maps_live";
   fuera_de_zona?: boolean;
+  /** Local de la cuenta en el que entró a la ruta (client_places.id). */
+  client_place_id?: string | null;
+  /** Factores de valor sin recorrido (_shared/valor.ts); el recorrido lo agrega la selección. */
+  factores?: { recuperacion: number | null; potencial: number | null };
+  /** Locales del cliente dentro del alcance. El primero es el principal. */
+  locales?: { lat: number; lng: number; place_id?: string | null; direccion?: string | null; barrio?: string | null }[];
 }
 
 // ---------------- helpers ----------------
@@ -223,7 +232,12 @@ export function scoreClients(
     if (!place || !isValidCoord(place.lat, place.long)) continue;
     const lat = Number(place.lat), long = Number(place.long);
     const distancia_km = calcularDistanciaKm(hotspot.lat, hotspot.lng, lat, long);
-    if (distancia_km > radiusKm) continue;
+    // Todos sus locales: el cliente entra si alguno queda al alcance.
+    const locales = [place, ...(options.localesMap?.get(c.client_id) || []).filter((l: any) => l.id !== place.id)]
+      .filter((l: any) => isValidCoord(l.lat, l.long))
+      .map((l: any) => ({ lat: Number(l.lat), lng: Number(l.long), place_id: l.id ?? null, direccion: l.direccion_principal ?? null, barrio: l.barrio_principal ?? null }))
+      .filter((l) => calcularDistanciaKm(hotspot.lat, hotspot.lng, l.lat, l.lng) <= radiusKm);
+    if (!locales.length) continue;
 
     const feedbacks = feedbacksMap.get(c.client_id) || [];
     if (excluidoPorFeedback(feedbacks, now)) continue;
@@ -276,6 +290,8 @@ export function scoreClients(
       cadencia_dias: c.cadencia_dias ?? null,
       alerta_nc: alertaNotaCredito(c),
       origen: "cartera",
+      factores: { recuperacion: recuperacion({ dias_sin_comprar: dias, cadencia_dias: c.cadencia_dias ?? null }), potencial: c.factor_potencial ?? null },
+      locales,
     });
   }
   out.sort((a, b) => b.score_total - a.score_total);
@@ -355,6 +371,9 @@ export function scoreProspects(
       total_ratings: p.total_ratings ?? null,
       prioridad_comercial: Math.round(score_comercial * 0.4),
       origen: "base",
+      // Un prospecto no se recupera: no compró nunca. Su potencial sale de lo que se sabe del lugar.
+      factores: { recuperacion: 0, potencial: score_comercial / 100 },
+      locales: [{ lat, lng: long, place_id: p.place_id, direccion: p.direccion ?? null, barrio: p.barrio ?? null }],
     });
   }
   out.sort((a, b) => a.distancia_km - b.distancia_km);

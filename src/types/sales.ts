@@ -1,4 +1,6 @@
 export interface Sucursal {
+  /** Local de la cuenta en el que entró a la ruta (puede no ser el principal). */
+  client_place_id?: string | null;
   id: string;
   nombre: string;
   direccion: string;

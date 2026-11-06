@@ -367,6 +367,15 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
         }
       });
 
+      // Locales elegidos por el motor que no son el principal: la visita va a esa dirección.
+      const localIds = [...new Set(clienteAsignaciones.map((a: any) => a.client_place_id).filter(Boolean))];
+      const localesVisita = new Map<string, any>();
+      if (localIds.length) {
+        const { data: locales } = await supabase.from('client_places')
+          .select('id, direccion_principal, barrio_principal, lat, long, google_maps_link').in('id', localIds);
+        (locales || []).forEach((l: any) => localesVisita.set(l.id, l));
+      }
+
       // Crear mapas para acceso rápido
       const clientesMap = new Map<string, any>();
       clientesData.forEach(c => clientesMap.set(c.client_id, c));
@@ -382,8 +391,12 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
 
       // Procesar clientes
       clienteAsignaciones.forEach((asig: any) => {
-        const clienteData = clientesMap.get(asig.client_id);
-        if (!clienteData) return;
+        const base = clientesMap.get(asig.client_id);
+        if (!base) return;
+        const local = asig.client_place_id ? localesVisita.get(asig.client_place_id) : null;
+        const clienteData = local
+          ? { ...base, direccion_principal: local.direccion_principal || base.direccion_principal, barrio_principal: local.barrio_principal || base.barrio_principal }
+          : base;
 
         const estado = asig.estado === 'Asignado' ? 'Por visitar' : asig.estado;
         
@@ -419,7 +432,9 @@ const VendedorKanban = forwardRef<VendedorKanbanRef, object>(function VendedorKa
           canal: clienteData.canal,
           telefonos: clienteData.telefonos,
           emails: clienteData.emails,
-          google_maps_link: placesMap.get(asig.client_id) || undefined,
+          google_maps_link: local
+            ? local.google_maps_link || `https://www.google.com/maps/search/?api=1&query=${local.lat},${local.long}`
+            : placesMap.get(asig.client_id) || undefined,
           origen_asignacion: asig.origen_asignacion || 'asignador',
           created_at: asig.created_at,
         };
