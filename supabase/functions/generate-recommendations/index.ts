@@ -13,7 +13,6 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { fijarFechaCorte } from "../_shared/estado-comercial.ts";
 import { loadIdentityContext, persistFoundProspects } from "../_shared/prospect-review-service.ts";
 import type { IdentityProspect } from "../_shared/prospect-identity.ts";
-import { aiChat, hayProveedorIA } from "../_shared/ai-chat.ts";
 import { buscarLugaresCercanos, type GooglePlace, hayGoogleMaps } from "../_shared/google-maps.ts";
 import { type AnchorPoint, calculateCentroid, findDensestHotspot } from "./geo-hotspot.ts";
 import {
@@ -36,6 +35,8 @@ import { type PlanVendedor, planificarRutas, VISITAS_POR_DIA } from "./planifica
 import { RADIO_RUTA_KM, errorRuta } from "../_shared/ruta.ts";
 import { basePotencial, potencial } from "../_shared/valor.ts";
 import { parametrosValidos } from "../_shared/seleccion.ts";
+import { type CandidatoOportunidad, factorPorZona, fraseOportunidad } from "../_shared/oportunidad.ts";
+import { calcularOportunidades } from "./oportunidad-servicio.ts";
 import { candidatoRegalos } from "../_shared/prospect-categories.ts";
 import { SolicitudInvalida, validarSolicitud } from "./solicitud.ts";
 import {
@@ -126,96 +127,6 @@ function placeAProspecto(place: GooglePlace) {
     estado_negocio: place.businessStatus || null,
     es_cliente_cupra: false,
   };
-}
-
-// ------------------------------------------------------------
-// IA: SOLO redacta (la composición ya está decidida)
-// ------------------------------------------------------------
-
-async function redactarConIA(
-  planes: PlanVendedor[],
-  instrucciones: string | null,
-  regalos = false,
-): Promise<{ textos: Map<string, string>; resumen: string | null }> {
-  const textos = new Map<string, string>();
-  if (!hayProveedorIA()) return { textos, resumen: null };
-  const cuadras = (km: number) => Math.max(1, Math.round((km * 1000) / 100));
-  const linea = (c: ScoredCandidate) => {
-    const tipo = c.es_prospecto ? "PROSPECTO (no compra todavía)" : {
-      ACTIVO: "CLIENTE ACTIVO", INACTIVO: "CLIENTE INACTIVO", PERDIDO: "CLIENTE PERDIDO", POTENCIAL: "CARTERA SIN COMPRAS",
-    }[c.estado_comercial];
-    const partes = [
-      `[${c.client_id}] ${c.razon_social}`,
-      tipo,
-      c.rubro ? `rubro ${c.rubro}` : null,
-      `barrio ${normalizeBarrio(c.barrio) || "s/d"}`,
-      c.fuera_de_zona ? "FUERA de la zona elegida (se sumó para completar 8)" : `a ${cuadras(c.distancia_km)} cuadras del inicio`,
-      !c.es_prospecto && c.dias_desde_ultima_compra != null ? `${c.dias_desde_ultima_compra} días sin comprar` : null,
-      c.cadencia_dias ? `compra cada ${Math.round(c.cadencia_dias)} días` : null,
-      c.ticket_promedio ? `ticket promedio $${Math.round(Number(c.ticket_promedio)).toLocaleString("es-AR")}` : null,
-      c.alerta_nc ? `DEVOLUCIÓN del ${Math.round(c.alerta_nc.ratio * 100)}% (visita de servicio, sin pitch de venta)` : null,
-      c.total_ratings ? `${c.total_ratings} reseñas en Google` : null,
-      c.feedbacks_recientes.length ? `comentario del vendedor: ${c.feedbacks_recientes.map((f) => f.feedback).filter(Boolean).join("; ")}` : null,
-    ].filter(Boolean);
-    return partes.join(" | ");
-  };
-  const secciones = planes
-    .filter((p) => p.elegidos.length > 0)
-    .map((p) => `### ${p.vendedor.nombre}\n${p.elegidos.map(linea).join("\n")}`)
-    .join("\n\n");
-  if (!secciones) return { textos, resumen: null };
-
-  try {
-    const r = await aiChat({
-      messages: [
-        {
-          role: "system",
-          content: `Sos el planificador comercial de una distribuidora de vinos premium en Buenos Aires.
-Las visitas del día YA están decididas. Tu única tarea es redactar, para cada una, una o dos frases en español rioplatense
-que expliquen al asignador comercial POR QUÉ conviene la visita hoy: rubro, relación con el cliente, tiempo sin comprar,
-potencial y cercanía (en cuadras). Empezá cada justificación con el rubro si lo tenés (ej: "Restaurante · ...").
-${regalos ? "Objetivo comercial: regalos empresariales. Proponer contacto con compras, RR. HH. o eventos y validar interés; no asumir consumo gastronómico, presupuesto ni compras confirmadas." : ""}
-PROHIBIDO: coordenadas, "hotspot", "score", "cluster", km, IDs o jerga interna. No inventes datos.${instrucciones ? `\nIndicaciones del asignador (tenelas en cuenta al redactar): ${instrucciones}` : ""}`,
-        },
-        { role: "user", content: secciones },
-      ],
-      tools: [{
-        type: "function",
-        function: {
-          name: "redactar",
-          parameters: {
-            type: "object",
-            properties: {
-              justificaciones: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: { client_id: { type: "string" }, justificacion: { type: "string" } },
-                  required: ["client_id", "justificacion"],
-                },
-              },
-              resumen: { type: "string" },
-            },
-            required: ["justificaciones", "resumen"],
-          },
-        },
-      }],
-      tool_choice: { type: "function", function: { name: "redactar" } },
-    });
-    if (!r.ok) {
-      console.warn(`IA no disponible (${r.status}); se usan textos determinísticos.`);
-      return { textos, resumen: null };
-    }
-    const args = r.data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-    const parsed = args ? JSON.parse(args) : null;
-    for (const j of parsed?.justificaciones || []) {
-      if (j?.client_id && j?.justificacion) textos.set(String(j.client_id), String(j.justificacion));
-    }
-    return { textos, resumen: parsed?.resumen || null };
-  } catch (e) {
-    console.warn("IA falló; se usan textos determinísticos:", e);
-    return { textos, resumen: null };
-  }
 }
 
 // ------------------------------------------------------------
@@ -455,6 +366,24 @@ Deno.serve(async (req) => {
       if (usadas >= 24 || Date.now() >= plazoGoogle) throw new Error("Se agotó el tiempo o presupuesto de búsqueda; reintentá este vendedor.");
       consultasPorVendedor.set(vendedorId, usadas + 1);
     };
+    // ---- 8b. Oportunidad: lo único que puntúa la IA, comprobado por código ----
+    // Con la fecha real de hoy (no la de los datos): las fechas especiales son del calendario.
+    const ultimoComentario = (lista?: any[]) => String(lista?.[0]?.feedback || "").trim() || null;
+    const candidatosOportunidad = new Map<string, CandidatoOportunidad>();
+    for (const c of [...carteraEnZona.values()].flat()) candidatosOportunidad.set(`C:${c.client_id}`, {
+      id: `C:${c.client_id}`, nombre: c.fantasia || c.razon_social || c.client_id, rubro: c.rubro ?? null, canal: c.canal ?? null,
+      barrio: placesMap.get(c.client_id)?.barrio_principal || c.barrio_principal || null, es_prospecto: false,
+      comentario: ultimoComentario(feedbacksClientes.get(c.client_id)),
+    });
+    for (const p of prospectosZona) candidatosOportunidad.set(`P:${p.place_id}`, {
+      id: `P:${p.place_id}`, nombre: p.nombre, rubro: p.rubro ?? null, canal: null, barrio: p.barrio ?? null, es_prospecto: true,
+      comentario: ultimoComentario(feedbacksProspectos.get(p.place_id)),
+    });
+    const { oportunidades, fallo: falloOportunidad } = await calcularOportunidades(db, [...candidatosOportunidad.values()], hoy);
+    const factorOportunidad = factorPorZona(oportunidades);
+    for (const c of [...carteraEnZona.values()].flat()) c.factor_oportunidad = factorOportunidad.get(`C:${c.client_id}`) ?? null;
+    for (const p of prospectosZona) p.factor_oportunidad = factorOportunidad.get(`P:${p.place_id}`) ?? null;
+
     const plan = await planificarRutas({
       vendedores: vendedoresData.map((v: any) => ({ user_id: v.user_id, nombre: v.nombre })),
       carteraEnZona,
@@ -523,7 +452,8 @@ Deno.serve(async (req) => {
     }
 
     // ---- 9. Textos (IA opcional) ----
-    const { textos, resumen: resumenIA } = await redactarConIA(plan.porVendedor, instrucciones_adicionales || null, regalos);
+    // Los textos los escribe el código. La IA solo aportó la Oportunidad, ya comprobada.
+    const oportunidadDe = (c: ScoredCandidate) => oportunidades.get(`${c.es_prospecto ? "P" : "C"}:${c.client_id}`);
 
     // ---- 10. Armar filas y guardar ----
     const request_id = crypto.randomUUID();
@@ -541,9 +471,13 @@ Deno.serve(async (req) => {
       for (const c of pv.elegidos) {
         const propuestaRegalos = regalos && !c.alerta_nc ? "Proponer regalos empresariales y consultar quién gestiona compras, RR. HH. o eventos. Validar interés y ocasión de compra. " : "";
         const fallback = justificacionComercial(c);
-        const cuerpo = limpiarJustificacion(textos.get(c.client_id), fallback);
+        const cuerpo = limpiarJustificacion([fraseOportunidad(oportunidadDe(c)), fallback].filter(Boolean).join(" "), fallback);
         const justificacion = propuestaRegalos + (c.rubro && !cuerpo.toLowerCase().includes(c.rubro.toLowerCase()) ? `${c.rubro} · ${cuerpo}` : cuerpo);
+        const op = oportunidadDe(c);
         const factores = {
+          // Valor (Etapa 2-4): cada factor de 0 a 1, y la justificación de la Oportunidad.
+          valor_factores: c.factores ?? null,
+          oportunidad: op ? { nivel: op.nivel, motivo: op.motivo, fecha: op.fecha, evento: op.evento, cita: op.cita } : null,
           score_comercial: c.score_comercial,
           score_recencia: c.score_rotacion,
           score_proximidad: c.score_geo,
@@ -642,6 +576,8 @@ Deno.serve(async (req) => {
     const zonaTexto = dedupeBarrios([...barriosFinales, ...comunasFinales]).join(", ") || "la zona seleccionada";
     const estadosTexto: Record<string, string> = { ACTIVO: "activos", INACTIVO: "inactivos", PERDIDO: "perdidos", POTENCIAL: "potenciales" };
     const avisos: string[] = [];
+    if (falloOportunidad) avisos.push(falloOportunidad);
+    if (instrucciones_adicionales) avisos.push("Las indicaciones escritas todavía no cambian la ruta: el motor decide por valor y la IA solo puntúa oportunidades.");
     for (const pv of plan.porVendedor) for (const aviso of pv.cobertura.avisos) avisos.push(`${pv.vendedor.nombre}: ${aviso}`);
     const errorGoogle = plan.porVendedor.find((p) => p.cobertura.error_google)?.cobertura.error_google;
     if (errorGoogle) avisos.push(`No se pudo buscar lugares nuevos en Google Maps (${errorGoogle}). Revisá la configuración o reintentá más tarde.`);
@@ -699,7 +635,7 @@ Deno.serve(async (req) => {
       recomendaciones,
       resumen: {
         total_recomendaciones: recomendaciones.length,
-        descripcion: limpiarJustificacion(resumenIA, descripcionBase, 2000),
+        descripcion: limpiarJustificacion(null, descripcionBase, 2000),
         distribucion_por_vendedor: distribucion,
         zonas_priorizadas: [...zonas].slice(0, 5),
         request_id,

@@ -77,7 +77,7 @@ export interface ScoredCandidate {
   /** Local de la cuenta en el que entró a la ruta (client_places.id). */
   client_place_id?: string | null;
   /** Factores de valor sin recorrido (_shared/valor.ts); el recorrido lo agrega la selección. */
-  factores?: { recuperacion: number | null; potencial: number | null };
+  factores?: { recuperacion: number | null; potencial: number | null; oportunidad?: number | null };
   /** Locales del cliente dentro del alcance. El primero es el principal. */
   locales?: { lat: number; lng: number; place_id?: string | null; direccion?: string | null; barrio?: string | null }[];
 }
@@ -294,7 +294,7 @@ export function scoreClients(
       cadencia_dias: c.cadencia_dias ?? null,
       alerta_nc: alertaNotaCredito(c),
       origen: "cartera",
-      factores: { recuperacion: recuperacion({ dias_sin_comprar: dias, cadencia_dias: c.cadencia_dias ?? null }), potencial: c.factor_potencial ?? null },
+      factores: { recuperacion: recuperacion({ dias_sin_comprar: dias, cadencia_dias: c.cadencia_dias ?? null }), potencial: c.factor_potencial ?? null, oportunidad: c.factor_oportunidad ?? null },
       locales,
     });
   }
@@ -377,7 +377,7 @@ export function scoreProspects(
       prioridad_comercial: Math.round(score_comercial * 0.4),
       origen: "base",
       // Un prospecto no se recupera: no compró nunca. Su potencial sale de lo que se sabe del lugar.
-      factores: factoresProspecto(p),
+      factores: { ...factoresProspecto(p), oportunidad: p.factor_oportunidad ?? null },
       locales: [{ lat, lng: long, place_id: p.place_id, direccion: p.direccion ?? null, barrio: p.barrio ?? null }],
     });
   }
