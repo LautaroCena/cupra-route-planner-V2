@@ -479,7 +479,9 @@ const ManualAssignment = () => {
         })),
       ];
 
-      await guardarAsignaciones(assignments, true);
+      // Asignar una visita no cambia el dueño del cliente: si un vendedor cubre a otro, el
+      // cliente sigue siendo del original. El dueño se cambia en "Editar datos de clientes".
+      await guardarAsignaciones(assignments);
 
       const partes = [
         clientIds.length ? `${clientIds.length} cliente(s)` : null,
@@ -920,8 +922,8 @@ const ManualAssignment = () => {
                 {" "}a <strong>{selectedVendedor ? toTitleCase(selectedVendedor.nombre) : ""}</strong>.
               </span>
               <span className="block text-xs text-muted-foreground">
-                Se crea una asignación por cada registro. En los clientes se actualiza el vendedor actual y queda
-                registrado en el historial de auditoría; los prospectos se asignan sin cambiar titularidad.
+                Se crea una visita por cada registro. Los clientes siguen siendo de su vendedor asignado; para
+                cambiarlo, usá "Editar datos de clientes".
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
