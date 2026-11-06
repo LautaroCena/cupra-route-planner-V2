@@ -2,6 +2,7 @@ import { googleMapsFetch } from "./google-maps.ts";
 import { type ParadaCercana, type Caminata } from "./compact-route.ts";
 import { ordenExacto } from "./seleccion.ts";
 import { distanciaKm } from "./ruta.ts";
+import { recorridoCaminata } from "./ors.ts";
 
 type Tramo = { distanceMeters?: number; duration?: string };
 const segundos = (duration: unknown): number => typeof duration === "string" && /^\d+(?:\.\d+)?s$/.test(duration)
@@ -37,6 +38,11 @@ export async function calcularCaminata(puntos: ParadaCercana[]): Promise<Caminat
       atribucion:"Google Maps",
     };
   } catch {
+    // Sin Google: OpenRouteService, si está configurado.
+    try {
+      const r = await recorridoCaminata(ruta);
+      if (r) return { ...base, verificada:true, metros:r.metros, minutos:r.minutos, atribucion:"OpenRouteService · © OpenStreetMap" };
+    } catch { /* sigue al aviso */ }
     return {...base,avisos:["No se pudo medir el recorrido por calles. Reintentá o revisalo en Google Maps; el radio no es la distancia total a pie."]};
   }
 }

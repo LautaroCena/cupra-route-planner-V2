@@ -32,6 +32,7 @@ import {
   type ScoredCandidate,
 } from "./candidatos.ts";
 import { type PlanVendedor, planificarRutas, VISITAS_POR_DIA } from "./planificador.ts";
+import { claveOrs, matrizCaminata } from "../_shared/ors.ts";
 import { RADIO_RUTA_KM, errorRuta } from "../_shared/ruta.ts";
 import { basePotencial, potencial } from "../_shared/valor.ts";
 import { parametrosValidos } from "../_shared/seleccion.ts";
@@ -406,6 +407,7 @@ Deno.serve(async (req) => {
       asignadosHoy,
       now,
     }, {
+      distanciasPie: claveOrs() ? (puntos) => matrizCaminata(puntos) : undefined,
       prospectosCerca: async (lat, lng, radioKm) => {
         const dLat = radioKm / 111.32;
         const dLng = radioKm / (111.32 * Math.cos((lat * Math.PI) / 180));

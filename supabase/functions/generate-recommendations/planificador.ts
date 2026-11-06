@@ -1,3 +1,4 @@
+import { distanciaDesdeMatriz, MAX_PUNTOS_MATRIZ } from "../_shared/ors.ts";
 // Ocho visitas dentro de un radio fijo de 1,5 km. Sin cupos por estado.
 // El planificador no accede a la red ni a la base: las dependencias se inyectan.
 import { type AnchorPoint, findDensestHotspot } from "./geo-hotspot.ts";
@@ -38,6 +39,8 @@ export interface PlanDeps {
   descubrirEnGoogle?(lat: number, lng: number, radioKm: number, objetivo: number, excluir: Set<string>, vendedorId?: string): Promise<any[]>;
   pasaGate(p: any): boolean;
   log?: (msg: string) => void;
+  /** Matriz de km caminando entre puntos (OpenRouteService). Sin ella, línea recta. */
+  distanciasPie?(puntos: { lat: number; lng: number }[]): Promise<number[][] | null>;
 }
 export interface Cobertura {
   vendedor: string;
@@ -63,6 +66,9 @@ export interface Cobertura {
   en_franja: number;
   error_google?: string;
   error_base?: string;
+  /** true si el recorrido elegido se midió caminando por calles. */
+  distancia_pie?: boolean;
+  error_distancias?: string;
 }
 export interface PlanVendedor {
   vendedor: Vendedor;
@@ -108,7 +114,7 @@ export async function planificarRutas(input: PlanInput, deps: PlanDeps): Promise
       prospectos_de_maps: 0, radio_final_km: 0, clientes_propios_en_zona: cartera.length,
       cuentas_prioritarias_fuera_de_zona: [], centros_evaluados: 0, km_recorrido: 0, valor_total: 0, avisos: [], en_franja: 0,
     };
-    const evaluar = (h: AnchorPoint, pausa: number, otrosEstados = false) => {
+    const evaluar = (h: AnchorPoint, pausa: number, otrosEstados = false, dist?: (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => number) => {
       // Se buscan candidatos hasta la franja; la selección decide quién entra.
       const clients = dedupeByIdentity(scoreClients(cartera, input.placesMap, input.feedbacksClientes, h, FRANJA_RUTA_KM,
         { ...opciones, revisitMap: input.revisitClientes, cooldownDays: pausa, localesMap: input.localesMap }).filter(c => !usadosIds.has(c.client_id)), usadosIdentidades);
@@ -118,7 +124,7 @@ export async function planificarRutas(input: PlanInput, deps: PlanDeps): Promise
         .map(c => ({ ...c, origen: nuevos.has(c.client_id) ? "maps_live" as const : "base" as const, fuera_de_zona: input.areaActiva && !input.enArea(prospectos.get(c.client_id)) }));
       const pool = new Map<string, ScoredCandidate>([...clients, ...prospects].map(c => [c.client_id, c]));
       const compuesto = componerPorValor({ clients, prospects, centro: h, unavailableIds: usadosIds,
-        estados: input.estados, permitirOtrosEstados: otrosEstados, parametros: input.parametros });
+        estados: input.estados, permitirOtrosEstados: otrosEstados, parametros: input.parametros, dist });
       // Cada elegido va con el local en el que entró (puede no ser el principal).
       const elegidos = compuesto.ids.map(id => {
         const c = pool.get(id)!, l = compuesto.locales.get(id);
@@ -160,7 +166,24 @@ export async function planificarRutas(input: PlanInput, deps: PlanDeps): Promise
         if(mejor?.elegidos.length===8)break;
       }
     }
-    if(!mejor || mejor.elegidos.length<8) mejor=centros.map(h=>evaluar(h,0,true)).sort(ordenar)[0];
+    let otros=false;
+    if(!mejor || mejor.elegidos.length<8) { candidatos=centros.map(h=>evaluar(h,0,true)).sort(ordenar); mejor=candidatos[0]; otros=true; }
+    // Con distancias a pie: se vuelven a medir los 3 mejores centros caminando por calles.
+    // El radio y la franja siguen en línea recta; cambia cuánto alarga cada visita y el recorrido.
+    if(deps.distanciasPie && mejor) {
+      const refinados:ReturnType<typeof evaluar>[]=[];
+      for(const c of candidatos.slice(0,3)) {
+        const puntos=[{lat:c.h.lat,lng:c.h.lng},...[...c.pool.values()].flatMap(x=>x.locales?.length?x.locales.map(l=>({lat:l.lat,lng:l.lng})):[{lat:Number(x.lat),lng:Number(x.long)}])]
+          .filter((p,i,xs)=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&xs.findIndex(q=>q.lat===p.lat&&q.lng===p.lng)===i)
+          .sort((a,b)=>distanciaKm(c.h,a)-distanciaKm(c.h,b)).slice(0,MAX_PUNTOS_MATRIZ);
+        try {
+          const m=await deps.distanciasPie(puntos);
+          if(!m)break;
+          refinados.push(evaluar(c.h,0,otros,distanciaDesdeMatriz(puntos,m,distanciaKm)));
+        } catch(e) { cobertura.error_distancias=e instanceof Error?e.message:String(e); break; }
+      }
+      if(refinados.length) { mejor=refinados.sort(ordenar)[0]; cobertura.distancia_pie=true; }
+    }
     cobertura.centros_evaluados = centros.length;
     const elegidos = mejor?.elegidos || [];
     const h = mejor?.h || null;

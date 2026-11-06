@@ -302,3 +302,35 @@ Deno.test("Google reemplaza destinos dispersos por siete prospectos de la misma 
   assertEquals(ruta.elegidos.filter(c=>c.es_prospecto).length,7);
   assert(ruta.cobertura.radio_final_km<0.15);
 });
+
+Deno.test("con distancias a pie, un cliente cercano en línea recta pero lejos caminando queda afuera", async () => {
+  const clientes = [-0.6, -0.4, -0.2, 0.2, 0.4, 0.6, 0.8, 1.0, 1.45].map((dx) => cliente("v1", 120, dx, 0));
+  // En la misma línea que los demás: en línea recta no alarga nada, pero caminando está "del otro lado de las vías".
+  const aislado = cliente("v1", 120, 0, 0);
+  clientes.push(aislado);
+  const esAislado = (p: { lat: number; lng: number }) => p.lat === aislado.place.lat && p.lng === aislado.place.long;
+  let llamadas = 0;
+  const plan = await planificarRutas(armarInput({ vendedores: ["v1"], clientes, prospectos: [], sinArea: true }), deps({
+    distanciasPie: async (puntos) => {
+      llamadas++;
+      return puntos.map((a) => puntos.map((b) => (a === b ? 0 : esAislado(a) || esAislado(b) ? 40 :
+        1.3 * Math.hypot((a.lat - b.lat) * 111.32, (a.lng - b.lng) * 111.32 * Math.cos((a.lat * Math.PI) / 180)))));
+    },
+  }));
+  const r = plan.porVendedor[0];
+  assert(llamadas >= 1 && llamadas <= 3, `consultas a la matriz: ${llamadas}`);
+  assert(r.cobertura.distancia_pie === true);
+  assertEquals(r.elegidos.length, 8);
+  assert(!r.elegidos.some((c) => c.client_id === aislado.row.client_id), "eligió al aislado");
+});
+
+Deno.test("si falla la matriz, sigue en línea recta y lo avisa", async () => {
+  const clientes = [0.2, 0.4, 0.6, -0.2, -0.4].map((dx) => cliente("v1", 120, dx, 0));
+  const plan = await planificarRutas(armarInput({ vendedores: ["v1"], clientes, prospectos: [], sinArea: true }), deps({
+    distanciasPie: async () => { throw new Error("OpenRouteService respondió 429"); },
+  }));
+  const r = plan.porVendedor[0];
+  assertEquals(r.elegidos.length, 5);
+  assert(!r.cobertura.distancia_pie);
+  assertEquals(r.cobertura.error_distancias, "OpenRouteService respondió 429");
+});
