@@ -35,6 +35,7 @@ import {
 import { type PlanVendedor, planificarRutas, VISITAS_POR_DIA } from "./planificador.ts";
 import { RADIO_RUTA_KM, errorRuta } from "../_shared/ruta.ts";
 import { basePotencial, potencial } from "../_shared/valor.ts";
+import { parametrosValidos } from "../_shared/seleccion.ts";
 import { candidatoRegalos } from "../_shared/prospect-categories.ts";
 import { SolicitudInvalida, validarSolicitud } from "./solicitud.ts";
 import {
@@ -460,6 +461,7 @@ Deno.serve(async (req) => {
       carteraTotal,
       placesMap,
       localesMap,
+      parametros: parametrosValidos((await db.from("motor_config").select("parametros").maybeSingle()).data?.parametros),
       prospectosZona,
       feedbacksClientes,
       feedbacksProspectos,

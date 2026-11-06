@@ -57,3 +57,11 @@ test('un cliente con varios locales entra una vez, en el que menos alarga', () =
   assert.equal(r.elegidos.filter((e) => e.id === 'multi').length, 1);
   assert.equal(r.elegidos.find((e) => e.id === 'multi').local.lng, 0.1);
 });
+
+test('parámetros guardados: se usa lo válido y lo demás queda por defecto', async () => {
+  const { parametrosValidos } = await import('../supabase/functions/_shared/seleccion.ts');
+  assert.deepEqual(parametrosValidos({ limite: 6, topeKm: 'mucho', penalizacionFranja: -3, pesos: { recorrido: 50 } }),
+    { limite: 6, pesos: { recorrido: 50, recuperacion: 25, oportunidad: 25, potencial: 15 } });
+  assert.deepEqual(parametrosValidos(null), {});
+  assert.deepEqual(parametrosValidos({ limite: 20 }), {});
+});

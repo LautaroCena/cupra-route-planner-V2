@@ -45,6 +45,35 @@ export const PARAMETROS_POR_DEFECTO: ParametrosSeleccion = {
   pesos: PESOS_POR_DEFECTO,
 };
 
+/**
+ * Lee los parámetros guardados (motor_config) y descarta lo que no tiene sentido,
+ * para que un dato mal cargado no rompa el motor: queda el valor por defecto.
+ */
+export function parametrosValidos(guardados: unknown): Partial<ParametrosSeleccion> {
+  const g = (guardados && typeof guardados === "object" ? guardados : {}) as Record<string, unknown>;
+  const num = (v: unknown, min: number, max: number) =>
+    typeof v === "number" && Number.isFinite(v) && v >= min && v <= max ? v : undefined;
+  const salida: Partial<ParametrosSeleccion> = {};
+  const limite = num(g.limite, 1, 8);
+  if (limite !== undefined) salida.limite = Math.round(limite);
+  const tope = num(g.topeKm, 0.5, 30);
+  if (tope !== undefined) salida.topeKm = tope;
+  const pen = num(g.penalizacionFranja, 0, 100);
+  if (pen !== undefined) salida.penalizacionFranja = pen;
+  const cambios = num(g.maxCambiosFranja, 0, 1);
+  if (cambios !== undefined) salida.maxCambiosFranja = Math.round(cambios);
+  const pesos = (g.pesos && typeof g.pesos === "object" ? g.pesos : null) as Record<string, unknown> | null;
+  if (pesos) {
+    const p: Partial<Pesos> = {};
+    for (const k of ["recorrido", "recuperacion", "oportunidad", "potencial"] as const) {
+      const v = num(pesos[k], 0, 100);
+      if (v !== undefined) p[k] = v;
+    }
+    if (Object.keys(p).length) salida.pesos = { ...PESOS_POR_DEFECTO, ...p };
+  }
+  return salida;
+}
+
 export interface Elegido {
   id: string;
   local: Local;
