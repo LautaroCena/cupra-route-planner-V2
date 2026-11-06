@@ -27,10 +27,16 @@ export interface ParametrosSeleccion {
   limite: number;
   radioKm: number;
   franjaKm: number;
-  /** En puntos de valor (0 a 100). */
+  /**
+   * En puntos de valor (0 a 100). Regla acordada: la mediana del desvío del valor dentro
+   * de cada zona, medida sobre toda la base (scripts/comparar-motor.mjs: 9,4 el 2026-11-06).
+   */
   penalizacionFranja: number;
   maxCambiosFranja: number;
-  /** Largo máximo de la ruta, desde el punto de partida. */
+  /**
+   * Largo máximo de la ruta, desde el punto de partida. 3,5 km en línea recta: con los
+   * datos reales da más valor y menos km que el motor viejo. Recalibrar con distancias por calle.
+   */
   topeKm: number;
   pesos: Pesos;
 }
@@ -39,7 +45,7 @@ export const PARAMETROS_POR_DEFECTO: ParametrosSeleccion = {
   limite: 8,
   radioKm: 1.5,
   franjaKm: 1.6,
-  penalizacionFranja: 17,
+  penalizacionFranja: 9.4,
   maxCambiosFranja: 1,
   topeKm: 3.5,
   pesos: PESOS_POR_DEFECTO,

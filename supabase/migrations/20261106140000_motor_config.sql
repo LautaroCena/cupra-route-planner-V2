@@ -14,7 +14,7 @@ COMMENT ON TABLE public.motor_config IS
 INSERT INTO public.motor_config (id, parametros) VALUES (true, jsonb_build_object(
   'limite', 8,
   'topeKm', 3.5,
-  'penalizacionFranja', 17,
+  'penalizacionFranja', 9.4,
   'maxCambiosFranja', 1,
   'pesos', jsonb_build_object('recorrido', 35, 'recuperacion', 25, 'oportunidad', 25, 'potencial', 15)
 )) ON CONFLICT (id) DO NOTHING;
