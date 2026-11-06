@@ -6,7 +6,7 @@ import { allClients } from "../_shared/import-batch.ts";
 import { carteraDelVendedor, centroClientes, coordenadaMapaValida, puntosDeCartera, validarSeleccionMapa, type UbicacionMapa } from "../_shared/map-selection.ts";
 import { centroDeZonaGoogle, prospectoEnZona, zonaDelCatalogo, type ZonaProspeccion, type ZonaProspeccionResuelta } from "../_shared/map-zones.ts";
 import { distanciaKm, RADIO_RUTA_KM, VISITAS_POR_DIA } from "../_shared/ruta.ts";
-import { hoyArgentina, excluidoPorFeedback, type FeedbackLike } from "../_shared/reglas.ts";
+import { hoyArgentina, excluidoPorFeedback, pausaPorVisita, type VisitaLike } from "../_shared/reglas.ts";
 import { loadIdentityContext, persistFoundProspects } from "../_shared/prospect-review-service.ts";
 import type { IdentityProspect } from "../_shared/prospect-identity.ts";
 import { buscarComplementoMapa, cubrirZonaMapa, descubrirProspectosMapa, mismoProspecto, ordenarProspectos, prospectoDisponible, puntoProspecto, type ProspectoMapa } from "./search.ts";
@@ -99,9 +99,9 @@ export async function handler(req: Request): Promise<Response> {
       all((from, to) => db.from("prospect_discovery_queue").select("place_id").eq("estado", "DESCARTADO").order("id").range(from, to)),
     ]);
     const bloqueados = new Set([...asignaciones.map(a => a.prospecto_place_id), ...descartados.map(d => d.place_id)]);
-    const comentarios = new Map<string, FeedbackLike[]>();
+    const comentarios = new Map<string, VisitaLike[]>();
     for (const f of feedbacks) if (f.prospecto_place_id) comentarios.set(f.prospecto_place_id, [...(comentarios.get(f.prospecto_place_id) || []), f]);
-    for (const [id, list] of comentarios) if (excluidoPorFeedback(list)) bloqueados.add(id);
+    for (const [id, list] of comentarios) if (excluidoPorFeedback(list) || pausaPorVisita(list, true).excluido) bloqueados.add(id);
     const { matcher } = await loadIdentityContext(db);
     const revisiones = new Set<string>();
     const identidadDisponible = (p: ProspectoMapa) => {

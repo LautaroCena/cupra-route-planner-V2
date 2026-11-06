@@ -209,3 +209,41 @@ export function origenProspecto(p: {
 // ------------------------------------------------------------
 
 export { rubroKey, TIPOS_GOOGLE_POR_RUBRO, TIPOS_GOOGLE_DEFAULT, tiposGoogleParaRubros } from "./prospect-categories.ts";
+
+// ------------------------------------------------------------
+// Pausa después de una visita (decidido con Lautaro el 2026-11-06)
+// ------------------------------------------------------------
+
+/** Días sin volver a recomendar un negocio después de una visita con contacto. */
+export const PAUSA_CLIENTE_DIAS = 14;
+export const PAUSA_PROSPECTO_DIAS = 30;
+export const PAUSA_SIN_INTERES_DIAS = 90;
+
+export interface VisitaLike extends FeedbackLike {
+  visita_realizada?: boolean | null;
+  tipo_interaccion?: string | null;
+  estado_cliente?: string | null;
+}
+
+const SIN_INTERES = [/no hubo interes/, /sin interes/, /no (le |les )?interesa/, /no quiere/, /no esta interesad/];
+
+/**
+ * ¿Hay que esperar antes de volver a proponer este negocio? Mira el comentario más
+ * reciente. Si no hubo contacto (estaba cerrado, etc.) no aplica: eso lo resuelve
+ * exclusionPorFeedback. Una fecha de revisita ("volver en 2 semanas") manda sobre
+ * esta pausa y se resuelve aparte, con revisitMap.
+ */
+export function pausaPorVisita(feedbacks: VisitaLike[], esProspecto: boolean, now: Date = new Date()): Exclusion {
+  const ultimo = [...(feedbacks || [])].sort((a, b) =>
+    (b.created_at ? Date.parse(b.created_at) : 0) - (a.created_at ? Date.parse(a.created_at) : 0))[0];
+  if (!ultimo?.visita_realizada || !ultimo.created_at) return { excluido: false };
+  const fecha = Date.parse(ultimo.created_at);
+  if (!Number.isFinite(fecha)) return { excluido: false };
+  const texto = sinAcentos(`${ultimo.feedback || ""} | ${ultimo.tipo_interaccion || ""} | ${ultimo.estado_cliente || ""}`);
+  if (REACTIVAR.some((re) => re.test(texto))) return { excluido: false };
+  const dias = esProspecto
+    ? (SIN_INTERES.some((re) => re.test(texto)) ? PAUSA_SIN_INTERES_DIAS : PAUSA_PROSPECTO_DIAS)
+    : PAUSA_CLIENTE_DIAS;
+  const hasta = fecha + dias * MS_DIA;
+  return hasta > now.getTime() ? { excluido: true, hasta: new Date(hasta).toISOString().slice(0, 10) } : { excluido: false };
+}

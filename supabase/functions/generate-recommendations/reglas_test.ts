@@ -9,6 +9,7 @@ import {
   hoyArgentina,
   volverDesde,
   origenProspecto,
+  pausaPorVisita,
   parseEstados,
   tiposGoogleParaRubros,
 } from "./reglas.ts";
@@ -133,4 +134,23 @@ Deno.test("sin compras: el centinela 9999 es potencial, igual que en la interfaz
   assertEquals(diasDesdeUltimaCompra({ dias_desde_ultima_compra: 9999 }, NOW), null);
   assertEquals(estadoPorDias(diasDesdeUltimaCompra({ dias_desde_ultima_compra: 9999 }, NOW)), "POTENCIAL");
   assertEquals(diasDesdeUltimaCompra({ ultima_compra: "2026-02-30", dias_desde_ultima_compra: null }, NOW), null);
+});
+
+Deno.test("pausa después de visitar: 14 días cliente, 30 prospecto, 90 sin interés", () => {
+  const hace = (d: number) => new Date(NOW.getTime() - d * 86400000).toISOString();
+  const visita = (d: number, extra: Record<string, unknown> = {}) => [{ visita_realizada: true, feedback: "Pasé y charlamos", created_at: hace(d), ...extra }];
+  assert(pausaPorVisita(visita(10), false, NOW).excluido);
+  assertFalse(pausaPorVisita(visita(15), false, NOW).excluido);
+  assert(pausaPorVisita(visita(20), true, NOW).excluido);
+  assertFalse(pausaPorVisita(visita(31), true, NOW).excluido);
+  // Sin interés: por el campo cerrado o por el texto.
+  assert(pausaPorVisita(visita(60, { tipo_interaccion: "No hubo interés" }), true, NOW).excluido);
+  assert(pausaPorVisita(visita(60, { estado_cliente: "Sin interés" }), true, NOW).excluido);
+  assert(pausaPorVisita(visita(60, { feedback: "No le interesa por ahora" }), true, NOW).excluido);
+  assertFalse(pausaPorVisita(visita(91, { estado_cliente: "Sin interés" }), true, NOW).excluido);
+  // "Reactivar" levanta la pausa; sin contacto no hay pausa (lo resuelve la exclusión de 7 días).
+  assertFalse(pausaPorVisita(visita(5, { feedback: "Sin interés, pero reactivar en diciembre" }), true, NOW).excluido);
+  assertFalse(pausaPorVisita([{ visita_realizada: false, motivo_no_visita: "Cerrado", created_at: hace(2) }], false, NOW).excluido);
+  // Manda el comentario más reciente.
+  assertFalse(pausaPorVisita([...visita(100, { estado_cliente: "Sin interés" }), ...visita(40)], true, NOW).excluido);
 });

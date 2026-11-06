@@ -18,6 +18,7 @@ import {
   type EstadoComercial,
   estadoPorDias,
   excluidoPorFeedback,
+  pausaPorVisita,
   origenProspecto,
 } from "./reglas.ts";
 
@@ -244,6 +245,8 @@ export function scoreClients(
 
     const revisit = options.revisitMap?.get(c.client_id);
     if (revisit && revisit.dueAt > now.getTime()) continue;
+    // Pausa después de una visita con contacto, salvo que el vendedor haya dejado fecha de revisita.
+    if (!revisit && pausaPorVisita(feedbacks, false, now).excluido) continue;
     const revisitBonus = revisit ? 30 : 0;
 
     const cd = enCooldown(c.last_recommendation_at, options.cooldownDays ?? 0, now);
@@ -334,6 +337,7 @@ export function scoreProspects(
     if (excluidoPorFeedback(feedbacks, now)) continue;
     const revisit = options.revisitMap?.get(p.place_id);
     if (revisit && revisit.dueAt > now.getTime()) continue;
+    if (!revisit && pausaPorVisita(feedbacks, true, now).excluido) continue;
     const revisitBonus = revisit ? 30 : 0;
 
     const cd = enCooldown(p.last_recommendation_at, options.cooldownDays ?? 0, now);
