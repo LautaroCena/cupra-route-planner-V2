@@ -8,6 +8,9 @@
 -- La misma regla está en supabase/functions/_shared/vendedor-asignado.ts.
 
 ALTER TABLE public.clientes ADD COLUMN IF NOT EXISTS vendedor_sugerido text;
+-- Cajas compradas en total (sin cantidades desconocidas). Base del potencial en _shared/valor.ts.
+ALTER TABLE public.clientes ADD COLUMN IF NOT EXISTS cajas_total numeric;
+ALTER TABLE public.clientes ADD COLUMN IF NOT EXISTS dias_con_compra integer;
 COMMENT ON COLUMN public.clientes.vendedor_sugerido IS
   'Otro vendedor que le viene vendiendo seguido (2 o más días en los últimos 90). Solo aviso: el asignado lo cambia un administrador.';
 
@@ -110,6 +113,8 @@ BEGIN
     monto_nc_concepto = ROUND(m.nc_concepto::numeric, 2),
     monto_notas_credito = ROUND(m.nc_producto::numeric, 2),
     fecha_ultima_nc = m.fecha_ultima_nc,
+    cajas_total = ROUND(m.cajas::numeric, 2),
+    dias_con_compra = m.dias_distintos,
     updated_at = now()
   FROM metricas m
   WHERE c.client_id = m.client_id;
