@@ -28,7 +28,7 @@ for (const c of lista) {
   c.valorSinRecorrido = valor({ ...c.factores });
 }
 
-const parametros = { topeKm: topeArg ? Number(topeArg) : 3.5, penalizacionFranja: penArg ? Number(penArg) : 17 };
+const parametros = { topeKm: topeArg ? Number(topeArg) : Infinity, penalizacionFranja: penArg ? Number(penArg) : 9.4 };
 const resultados = { viejo: [], nuevo: [] };
 let franja = 0, multi = 0, incompletas = 0, centros = 0;
 for (const centroCliente of lista) {

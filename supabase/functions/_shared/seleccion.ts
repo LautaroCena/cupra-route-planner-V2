@@ -34,8 +34,9 @@ export interface ParametrosSeleccion {
   penalizacionFranja: number;
   maxCambiosFranja: number;
   /**
-   * Largo máximo de la ruta, desde el punto de partida. 3,5 km en línea recta: con los
-   * datos reales da más valor y menos km que el motor viejo. Recalibrar con distancias por calle.
+   * Largo máximo de la ruta, desde el punto de partida. Sin tope por decisión de Lautaro
+   * (2026-11-06): el límite son las 8 visitas dentro del radio; si hay que caminar más, se camina.
+   * Queda configurable por si el negocio pide uno.
    */
   topeKm: number;
   pesos: Pesos;
@@ -47,7 +48,7 @@ export const PARAMETROS_POR_DEFECTO: ParametrosSeleccion = {
   franjaKm: 1.6,
   penalizacionFranja: 9.4,
   maxCambiosFranja: 1,
-  topeKm: 3.5,
+  topeKm: Infinity,
   pesos: PESOS_POR_DEFECTO,
 };
 
@@ -64,6 +65,7 @@ export function parametrosValidos(guardados: unknown): Partial<ParametrosSelecci
   if (limite !== undefined) salida.limite = Math.round(limite);
   const tope = num(g.topeKm, 0.5, 30);
   if (tope !== undefined) salida.topeKm = tope;
+  else if (g.topeKm === null) salida.topeKm = Infinity;
   const pen = num(g.penalizacionFranja, 0, 100);
   if (pen !== undefined) salida.penalizacionFranja = pen;
   const cambios = num(g.maxCambiosFranja, 0, 1);
@@ -203,7 +205,7 @@ export function seleccionarPorValor(
       return { x, local, extra };
     }).filter((o) => largo(ruta, dist) + o.extra <= p.topeKm + 1e-9);
     if (!opciones.length) {
-      avisos.push(`El tope de ${p.topeKm} km no deja sumar más visitas.`);
+      if (Number.isFinite(p.topeKm)) avisos.push(`El tope de ${p.topeKm} km no deja sumar más visitas.`);
       break;
     }
     const maxExtra = Math.max(...opciones.map((o) => o.extra));
