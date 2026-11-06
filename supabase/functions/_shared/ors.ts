@@ -5,7 +5,8 @@
 export interface Punto { lat: number; lng: number }
 type Fetch = typeof fetch;
 
-const BASE = "https://api.openrouteservice.org/v2";
+// api.openrouteservice.org quedó obsoleta; la nueva dirección es api.heigit.org (misma clave y cupo).
+const BASE = "https://api.heigit.org/openrouteservice/v2";
 /** Lo que se camina de más, en promedio, frente a la línea recta. Solo para pares sin dato. */
 export const FACTOR_CAMINATA = 1.26;
 /** 50 × 50 = 2.500 tramos, debajo del límite de 3.500 por consulta. */
