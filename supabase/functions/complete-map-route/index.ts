@@ -95,8 +95,7 @@ export async function handler(req: Request): Promise<Response> {
         .not("prospecto_place_id", "is", null)
         .or(`fecha_programada.eq.${hoy},and(fecha_programada.is.null,created_at.gte.${inicio},created_at.lt.${fin}),and(visited_at.gte.${inicio},visited_at.lt.${fin})`)
         .order("id").range(from, to)),
-      all((from, to) => db.from("cliente_feedbacks").select("prospecto_place_id,feedback,motivo_no_visita,created_at")
-        .not("prospecto_place_id", "is", null).order("id").range(from, to)),
+      all((from, to) => db.rpc("comentarios_recientes", { p_por_comercio: 1 }).not("prospecto_place_id", "is", null).range(from, to)),
       all((from, to) => db.from("prospect_discovery_queue").select("place_id").eq("estado", "DESCARTADO").order("id").range(from, to)),
     ]);
     const bloqueados = new Set([...asignaciones.map(a => a.prospecto_place_id), ...descartados.map(d => d.place_id)]);

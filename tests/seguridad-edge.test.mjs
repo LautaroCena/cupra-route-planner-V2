@@ -36,7 +36,7 @@ async function loadHandler(name) {
   const query=(table)=>({
     select(){return this},order(){return this},limit(){return this},in(){return this},
     eq(k,v){filters.push([table,k,v]);return this},
-    async maybeSingle(){return {data:table==='visita_briefings'?{briefing:'Contexto propio',hechos:{version:2},updated_at:new Date().toISOString()}:null,error:null}},
+    async maybeSingle(){return {data:table==='visita_briefings'?{briefing:'Contexto propio',hechos:{version:3},updated_at:new Date().toISOString()}:null,error:null}},
     async single(){return {data:scenario.active?{rol:scenario.role,activo:true}:null,error:null}},
     async then(resolve){resolve({data:table==='asignaciones_vendedores_clientes'&&scenario.own?[{id:'own'}]:[],error:null})},
   });

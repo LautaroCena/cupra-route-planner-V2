@@ -417,19 +417,13 @@ Deno.serve(async (req) => {
     }
 
     // ---- 7. Feedback de los vendedores ----
-    const feedbacks = await fetchAll((from, to) =>
-      db.from("cliente_feedbacks")
-        .select("id, client_id, prospecto_place_id, vendedor_id, visita_realizada, feedback, motivo_no_visita, tipo_interaccion, estado_cliente, created_at")
-        .order("created_at", { ascending: false })
-        .order("id")
-        .range(from, to)
-    );
+    // Solo los 2 últimos por comercio: el más reciente decide la exclusión y el otro da contexto.
+    const feedbacks = await fetchAll((from, to) => db.rpc("comentarios_recientes", { p_por_comercio: 2 }).range(from, to));
     const extracciones = new Map<string, FeedbackExtraccion>();
-    try {
-      const ext = await fetchAll((from, to) => db.from("feedback_extraccion").select("feedback_id, revisit_date, resumen, confianza").order("feedback_id").range(from, to));
-      ext.forEach((e: any) => extracciones.set(e.feedback_id, e));
-    } catch (e) {
-      console.warn("feedback_extraccion no disponible; se usa el parser de texto:", e);
+    for (const fb of feedbacks) {
+      if (fb.revisit_date || fb.resumen) {
+        extracciones.set(fb.id, { feedback_id: fb.id, revisit_date: fb.revisit_date, resumen: fb.resumen, confianza: fb.confianza } as FeedbackExtraccion);
+      }
     }
     const feedbacksClientes = new Map<string, any[]>();
     const feedbacksProspectos = new Map<string, any[]>();
