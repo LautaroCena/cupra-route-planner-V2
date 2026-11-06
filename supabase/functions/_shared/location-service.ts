@@ -1,3 +1,4 @@
+import { mensajePublico } from "./errores.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
 import { googleMapsFetch } from "./google-maps.ts";
 import { argentinaCoordinates } from "./import-values.ts";
@@ -27,7 +28,8 @@ export async function authorize(req: Request, write: boolean) {
 }
 export function failure(error: unknown) {
   const known = error instanceof RequestError;
-  const message = error instanceof Error ? error.message : "No se pudo completar la operación";
+  if (!known) console.error("[failure]", error);
+  const message = known ? (error as RequestError).message : mensajePublico(error, "No se pudo completar la operación. Probá de nuevo.");
   return json({ success: false, status: "ERROR", error: message, message, error_code: known ? error.code : "NETWORK_ERROR" }, known ? error.status : 500);
 }
 

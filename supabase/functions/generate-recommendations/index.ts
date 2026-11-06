@@ -9,7 +9,8 @@
 //   planificador.ts             núcleo de ruta y validación de ocho visitas a 1,5 km
 // ============================================================
 
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
+import { mensajePublico } from "../_shared/errores.ts";
 import { fijarFechaCorte } from "../_shared/estado-comercial.ts";
 import { loadIdentityContext, persistFoundProspects } from "../_shared/prospect-review-service.ts";
 import type { IdentityProspect } from "../_shared/prospect-identity.ts";
@@ -545,7 +546,7 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("❌ Error:", error);
-    return json({ error: error instanceof Error ? error.message : "Error desconocido" },
+    return json({ error: mensajePublico(error) },
       error instanceof SolicitudInvalida || error instanceof SyntaxError ? 400 : 500);
   }
 });

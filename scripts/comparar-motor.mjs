@@ -3,10 +3,52 @@
 // El export sale de la base de la demo (clientes + client_places); no se sube al repo.
 // Mide en línea recta: con distancias por calle los km van a ser mayores.
 import fs from 'node:fs';
-import { seleccionarCercanos } from '../supabase/functions/_shared/compact-route.ts';
 import { seleccionarPorValor, largo } from '../supabase/functions/_shared/seleccion.ts';
 import { recuperacion, potencial, basePotencial, valor } from '../supabase/functions/_shared/valor.ts';
-import { distanciaKm } from '../supabase/functions/_shared/ruta.ts';
+import { distanciaKm, RADIO_RUTA_KM } from '../supabase/functions/_shared/ruta.ts';
+
+// Motor viejo (selección por cercanía), copiado tal como estaba, solo para comparar.
+const RADIOS_CERCANIA = [0.15, 0.3, 0.6, 1, RADIO_RUTA_KM];
+function longitudRuta(puntos) {
+  return puntos.slice(1).reduce((s,p,i)=>s+distanciaKm(puntos[i],p),0);
+}
+function ordenarRecorrido(puntos) {
+  if (puntos.length < 2) return [...puntos];
+  let mejor = [], longitud = Infinity;
+  for (const inicio of puntos) {
+    const ruta=[inicio], resto=puntos.filter(p=>p.id!==inicio.id);
+    while(resto.length) {
+      resto.sort((a,b)=>distanciaKm(ruta[ruta.length-1],a)-distanciaKm(ruta[ruta.length-1],b)||a.id.localeCompare(b.id));
+      ruta.push(resto.shift());
+    }
+    // Dos intercambios evitan cruces sin alterar el conjunto de visitas.
+    for(let pass=0;pass<2;pass++) for(let i=0;i<ruta.length-2;i++) for(let j=i+2;j<ruta.length;j++) {
+      const alternativa=[...ruta.slice(0,i),...ruta.slice(i,j+1).reverse(),...ruta.slice(j+1)];
+      if(longitudRuta(alternativa)+0.000001<longitudRuta(ruta)) ruta.splice(0,ruta.length,...alternativa);
+    }
+    const km=longitudRuta(ruta);
+    if(km<longitud) { mejor=ruta;longitud=km; }
+  }
+  return mejor;
+}
+
+function seleccionarCercanos(centro, candidatos, fijos = [], limite=8) {
+  if(fijos.length>limite || fijos.some(p=>distanciaKm(centro,p)>RADIO_RUTA_KM)) throw new Error("La selección fija supera el límite de la ruta");
+  const pool=[...new Map(candidatos.filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&distanciaKm(centro,p)<=RADIO_RUTA_KM).map(p=>[p.id,p])).values()];
+  const elegidos=[...new Map(fijos.map(p=>[p.id,p])).values()];
+  const ids=new Set(elegidos.map(p=>p.id));
+  const radio=RADIOS_CERCANIA.find(r=>pool.filter(p=>!ids.has(p.id)&&distanciaKm(centro,p)<=r).length+elegidos.length>=limite)??RADIO_RUTA_KM;
+  const resto=pool.filter(p=>!ids.has(p.id)&&distanciaKm(centro,p)<=radio);
+  while(elegidos.length<limite && resto.length) {
+    const costo=(p)=>elegidos.length ? Math.min(...elegidos.map(q=>distanciaKm(p,q))) : distanciaKm(centro,p);
+    resto.sort((a,b)=>Math.round(costo(a)*1000)-Math.round(costo(b)*1000)
+      || (b.prioridad??0)-(a.prioridad??0) || Number(Boolean(b.cliente))-Number(Boolean(a.cliente)) || a.id.localeCompare(b.id));
+    elegidos.push(resto.shift());
+  }
+  return ordenarRecorrido(elegidos);
+}
+
+
 
 const [archivo, topeArg, penArg] = process.argv.slice(2);
 const raw = fs.readFileSync(archivo, 'utf8');

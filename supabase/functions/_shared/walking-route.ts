@@ -1,12 +1,15 @@
 import { googleMapsFetch } from "./google-maps.ts";
-import { ordenarRecorrido, type ParadaCercana, type Caminata } from "./compact-route.ts";
+import { type ParadaCercana, type Caminata } from "./compact-route.ts";
+import { ordenExacto } from "./seleccion.ts";
+import { distanciaKm } from "./ruta.ts";
 
 type Tramo = { distanceMeters?: number; duration?: string };
 const segundos = (duration: unknown): number => typeof duration === "string" && /^\d+(?:\.\d+)?s$/.test(duration)
   ? Number(duration.slice(0,-1)) : NaN;
 
 export async function calcularCaminata(puntos: ParadaCercana[]): Promise<Caminata> {
-  const ruta = ordenarRecorrido(puntos);
+  // El mismo orden exacto que usa el motor.
+  const ruta = ordenExacto(puntos, distanciaKm);
   const base: Caminata = { orden:ruta.map(p=>p.id), metros:null, minutos:null, avisos:[], atribucion:"", verificada:false };
   if (ruta.length < 2) return base;
   const waypoint = (p:ParadaCercana) => ({location:{latLng:{latitude:p.lat,longitude:p.lng}}});

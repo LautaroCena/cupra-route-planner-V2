@@ -37,7 +37,6 @@ export interface PlanDeps {
   prospectosCerca(lat: number, lng: number, radioKm: number): Promise<any[]>;
   descubrirEnGoogle?(lat: number, lng: number, radioKm: number, objetivo: number, excluir: Set<string>, vendedorId?: string): Promise<any[]>;
   pasaGate(p: any): boolean;
-  preferidosIA?: Map<string, string[]>;
   log?: (msg: string) => void;
 }
 export interface Cobertura {

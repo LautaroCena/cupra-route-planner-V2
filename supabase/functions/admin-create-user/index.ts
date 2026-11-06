@@ -1,5 +1,10 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
+import { mensajePublico } from "../_shared/errores.ts";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -90,6 +95,6 @@ Deno.serve(async (req) => {
     return json({ ok: true, user_id: newUserId });
   } catch (e) {
     console.error("admin-create-user", e);
-    return json({ error: e instanceof Error ? e.message : "Error inesperado" }, 500);
+    return json({ error: mensajePublico(e) }, 500);
   }
 });

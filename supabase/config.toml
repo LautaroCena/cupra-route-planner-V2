@@ -3,24 +3,6 @@ project_id = "cupra-route-planner-v2"
 [functions.generate-recommendations]
 verify_jwt = false
 
-[functions.upsert-ventas-cupra]
-verify_jwt = false
-
-[functions.upsert-clientes]
-verify_jwt = false
-
-[functions.upsert-client-places]
-verify_jwt = false
-
-[functions.upsert-prospectos]
-verify_jwt = false
-
-[functions.cleanup-visited-assignments]
-verify_jwt = false
-
-[functions.check-pending-assignments]
-verify_jwt = false
-
 [functions.process-ventas-excel]
 verify_jwt = false
 

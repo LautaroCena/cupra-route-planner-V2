@@ -1,6 +1,7 @@
 import { CATEGORIAS_PROSPECTOS, candidatoRegalos } from "../_shared/prospect-categories.ts";
 import { MAX_PROMOTION_BATCH } from "../_shared/prospect-promotion.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
+import { mensajePublico } from '../_shared/errores.ts';
 import { googleMapsFetch, hayGoogleMaps } from "../_shared/google-maps.ts";
 import { persistFoundProspects } from "../_shared/prospect-review-service.ts";
 
@@ -175,7 +176,7 @@ Deno.serve(async (req) => {
         .in('estado', ['NUEVO', 'EN_REVISION'])
         .order('discovered_at', { ascending: false })
         .limit(200);
-      if (error) throw new Error(`No se pudo leer la cola: ${error.message}`);
+      if (error) { console.error('cola (leer):', error.message); throw new Error('No se pudo leer la cola de búsqueda.'); }
       return jsonResponse({ success: true, queue: data || [] });
     }
 
@@ -187,7 +188,7 @@ Deno.serve(async (req) => {
         .from('prospect_discovery_queue')
         .update({ estado: body.status })
         .eq('place_id', body.placeId);
-      if (error) throw new Error(`No se pudo actualizar la cola: ${error.message}`);
+      if (error) { console.error('cola (actualizar):', error.message); throw new Error('No se pudo actualizar la cola de búsqueda.'); }
       return jsonResponse({ success: true });
     }
 
@@ -208,7 +209,7 @@ Deno.serve(async (req) => {
         .from('prospect_discovery_queue')
         .select('place_id, estado')
         .in('place_id', placeIds);
-      if (existingError) throw new Error(`No se pudo validar la cola: ${existingError.message}`);
+      if (existingError) { console.error('cola (validar):', existingError.message); throw new Error('No se pudo validar la cola de búsqueda.'); }
 
       const existingMap = new Map((existing || []).map((row) => [row.place_id, row.estado]));
       const newIds = placeIds.filter((placeId) => !existingMap.has(placeId));
@@ -224,7 +225,7 @@ Deno.serve(async (req) => {
             creado_por: authData.user.id,
           })),
         );
-        if (insertError) throw new Error(`No se pudo guardar la cola: ${insertError.message}`);
+        if (insertError) { console.error('cola (guardar):', insertError.message); throw new Error('No se pudo guardar la cola de búsqueda.'); }
       }
 
       for (const placeId of discardedIds) {
@@ -232,7 +233,7 @@ Deno.serve(async (req) => {
           .from('prospect_discovery_queue')
           .update({ estado: 'NUEVO', consulta: query, zona: zone, notas: noteFor(placeId), creado_por: authData.user.id })
           .eq('place_id', placeId);
-        if (reactivateError) throw new Error(`No se pudo reactivar la cola: ${reactivateError.message}`);
+        if (reactivateError) { console.error('cola (reactivar):', reactivateError.message); throw new Error('No se pudo reactivar la cola de búsqueda.'); }
       }
 
 
@@ -484,7 +485,7 @@ Deno.serve(async (req) => {
     console.error('prospect-discovery error:', error);
     return jsonResponse({
       success: false,
-      error: error instanceof Error ? error.message : 'Error inesperado',
+      error: mensajePublico(error),
     }, 500);
   }
 });

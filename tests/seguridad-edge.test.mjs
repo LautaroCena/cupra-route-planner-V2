@@ -59,26 +59,20 @@ async function loadHandler(name) {
   },async close(){delete globalThis.__securitySdk;delete globalThis.Deno;await rm(dir,{recursive:true,force:true})}};
 }
 
-for(const name of ['cleanup-visited-assignments','check-pending-assignments','generate-briefing','extract-feedback','admin-create-user','walking-route','prospect-discovery']) {
+for(const name of ['generate-briefing','extract-feedback','admin-create-user','walking-route','prospect-discovery']) {
   test(name+': rechaza anónimo, token inválido y cuenta inactiva antes de acceder al negocio',async()=>{
     const h=await loadHandler(name);
     try {
       for(const [scenario,token,want] of [[{},null,401],[{valid:false},'invalid',401],[{active:false},'valid',403]]) {
         const r=await h.run(scenario,token);assert.equal(r.status,want);assert.deepEqual(r.businessCalls,[]);
       }
-      if(['cleanup-visited-assignments','check-pending-assignments','admin-create-user','walking-route','prospect-discovery'].includes(name)) {
+      if(['admin-create-user','walking-route','prospect-discovery'].includes(name)) {
         const r=await h.run({role:'vendedor'});assert.equal(r.status,403);assert.deepEqual(r.businessCalls,[]);
-      }
-      if(name==='cleanup-visited-assignments'){
-        const r=await h.run();assert.equal(r.status,410);assert.equal(r.body.deletedCount,0);assert.deepEqual(r.businessCalls,[]);
       }
       if(name==='extract-feedback'){
         const r=await h.run({role:'vendedor'});assert.equal(r.status,200);assert(r.filters.some(([table,k,v])=>table==='cliente_feedbacks'&&k==='vendedor_id'&&v==='test-user'));
       }
       if(name==='admin-create-user')assert.equal((await h.run({role:'asignador'})).status,403);
-      if(name==='check-pending-assignments'){
-        const r=await h.run();assert.equal(r.status,200);assert.deepEqual(r.businessCalls,['generar_notificaciones_pendientes']);
-      }
     } finally {await h.close()}
   });
 }
