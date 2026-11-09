@@ -189,7 +189,7 @@ export function crearResolvedorVendedores(
 // Origen del prospecto
 // ------------------------------------------------------------
 
-export type OrigenProspecto = "google" | "excel" | "manual";
+export type OrigenProspecto = "google" | "excel" | "manual" | "osm";
 
 /**
  * Origen del prospecto a partir de sus identificadores y metadatos.
@@ -204,6 +204,7 @@ export function origenProspecto(p: {
   rating?: number | null;
 }): OrigenProspecto {
   const id = String(p.place_id || "");
+  if (id.startsWith("osm-")) return "osm";
   if (id.startsWith("manual-") || String(p.tipo_principal || "").toLowerCase() === "manual") return "manual";
   if (id.startsWith("excel-")) return "excel";
   const conResenas = Number(p.total_ratings) > 0 || Number(p.rating) > 0;

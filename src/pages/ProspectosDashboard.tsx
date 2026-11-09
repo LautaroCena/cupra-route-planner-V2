@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import AgregarProspectoForm, { hasProspectoDraft } from "@/components/vendedor/AgregarProspectoForm";
 import { ProspectDiscoveryDialog } from "@/components/prospectos/ProspectDiscoveryDialog";
+import { ImportarOsmDialog } from "@/components/prospectos/ImportarOsmDialog";
 import { ProspectReviewDialog } from "@/components/prospectos/ProspectReviewDialog";
 import { ProspectoDetalleDialog } from "@/components/prospectos/ProspectoDetalleDialog";
 import { Slider } from "@/components/ui/slider";
@@ -168,6 +169,7 @@ const ProspectosDashboard = () => {
     return ()=>{mounted=false;};
   }, []);
   const [showBuscarProspectos, setShowBuscarProspectos] = useState(false);
+  const [showImportarOsm, setShowImportarOsm] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [detalleProspecto, setDetalleProspecto] = useState<Prospecto | null>(null);
 
@@ -578,6 +580,10 @@ const ProspectosDashboard = () => {
               <Button variant="outline" onClick={() => downloadCsv(filteredData)} className="h-[38px] gap-2">
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">Exportar CSV</span>
+              </Button>
+              <Button variant="outline" onClick={() => setShowImportarOsm(true)} className="h-[38px] gap-2">
+                <MapPin className="h-4 w-4" />
+                <span className="hidden sm:inline">Traer de OpenStreetMap</span>
               </Button>
               <Button variant="outline" onClick={() => setShowAgregarProspecto(true)} className="h-[38px] gap-2">
                 <Plus className="h-4 w-4" />
@@ -1053,6 +1059,7 @@ const ProspectosDashboard = () => {
           </DialogContent>
         </Dialog>
 
+        <ImportarOsmDialog open={showImportarOsm} onOpenChange={setShowImportarOsm} onImported={fetchProspectosData} />
         <ProspectDiscoveryDialog
           enfoqueRegalos={regalos}
           open={showBuscarProspectos}
