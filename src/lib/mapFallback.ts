@@ -52,7 +52,8 @@ class FMap extends Evented {
     };
     notice.addTo(this.__lf);
     this.__lf.on("moveend", () => window.setTimeout(() => this.__trigger("idle"), 0));
-    this.__lf.on("click", () => this.__trigger("click"));
+    // Igual que Google: el clic trae el punto (latLng) para poder marcar ubicaciones.
+    this.__lf.on("click", (e: L.LeafletMouseEvent) => this.__trigger("click", { latLng: { lat: () => e.latlng.lat, lng: () => e.latlng.lng } }));
     window.setTimeout(() => this.__lf.invalidateSize(), 0);
   }
   fitBounds(bounds: FBounds) {

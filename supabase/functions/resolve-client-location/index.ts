@@ -14,8 +14,16 @@ Deno.serve(async req => {
     const address = typeof body.direccion === "string" ? body.direccion.trim().slice(0, 700) : "";
     if ((lat === null) !== (lng === null)) throw new RequestError("Completá ambas coordenadas", 422, "INVALID_COORDINATES");
     if (lat === null && !address) throw new RequestError("Falta dirección o coordenadas", 400, "BAD_REQUEST");
-    let location = lat !== null && lng !== null ? await reverseGeocode(lat, lng) : await geocodeAddress(`${address}, Argentina`);
-    if (!location.barrio) location = { ...location, ...await reverseGeocode(location.lat, location.lng) };
+    // Un punto marcado a mano se guarda aunque no se identifique el barrio (por ejemplo,
+    // fuera de CABA sin clave de Google): la ubicación es lo que importa para las rutas.
+    const sinBarrio = (la: number, ln: number) => ({ lat: la, lng: ln, formatted_address: "", location_type: "MANUAL", barrio: null,
+      comuna: null, ciudad: null, provincia: null, postal_code: null, admin_area_level_2: null, barrio_fallback_admin2: null, place_id: null });
+    const barrioDe = async (la: number, ln: number) => {
+      try { return await reverseGeocode(la, ln); }
+      catch (e) { if (lat !== null && e instanceof RequestError && e.code === "NO_NEIGHBORHOOD") return sinBarrio(la, ln); throw e; }
+    };
+    let location: any = lat !== null && lng !== null ? await barrioDe(lat, lng) : await geocodeAddress(`${address}, Argentina`);
+    if (!location.barrio) location = { ...location, ...await barrioDe(location.lat, location.lng) };
     const { data: saved, error: saveError } = await db.rpc("guardar_ubicacion_cliente", {
       p_client_id: body.client_id, p_manual: true,
       p_datos: {

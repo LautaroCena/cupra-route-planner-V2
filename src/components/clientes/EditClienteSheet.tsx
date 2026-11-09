@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Plus, X, Loader2, Bot, MapPin, User, Phone, AlertTriangle } from "lucide-react";
 import type { ClienteEditable } from "@/pages/ClientesEdicion";
 import { GeocodificarClienteForm } from "./GeocodificarClienteForm";
+import { MarcarEnMapaForm } from "./MarcarEnMapaForm";
 
 interface EditClienteSheetProps {
   cliente: ClienteEditable;
@@ -47,6 +48,7 @@ export const EditClienteSheet = ({
   
   // Estado para mostrar formulario de geocodificación
   const [showGeocodingForm, setShowGeocodingForm] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   // Inicializar estado cuando cambia el cliente
   useEffect(() => {
@@ -56,6 +58,7 @@ export const EditClienteSheet = ({
     setNewTelefono("");
     setNewEmail("");
     setShowGeocodingForm(false);
+    setShowMapPicker(false);
   }, [cliente]);
 
   const handleAddTelefono = () => {
@@ -365,7 +368,7 @@ export const EditClienteSheet = ({
             )}
             
             {/* Cliente SIN ubicación: mostrar alerta y botón */}
-            {!cliente.has_location && !showGeocodingForm && (
+            {!cliente.has_location && !showGeocodingForm && !showMapPicker && (
               <div className="space-y-3">
                 <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
                   <AlertTriangle className="h-4 w-4" />
@@ -393,11 +396,23 @@ export const EditClienteSheet = ({
                   className="w-full"
                 >
                   <MapPin className="mr-2 h-4 w-4" />
-                  Agregar ubicación
+                  Buscar por dirección
+                </Button>
+                <Button variant="outline" onClick={() => setShowMapPicker(true)} className="w-full">
+                  Marcar en el mapa
                 </Button>
               </div>
             )}
             
+            {showMapPicker && (
+              <MarcarEnMapaForm
+                clientId={cliente.client_id}
+                direccionActual={cliente.direccion_principal}
+                onSuccess={onLocationAdded}
+                onCancel={() => setShowMapPicker(false)}
+              />
+            )}
+
             {/* Formulario de geocodificación */}
             {showGeocodingForm && (
               <GeocodificarClienteForm
