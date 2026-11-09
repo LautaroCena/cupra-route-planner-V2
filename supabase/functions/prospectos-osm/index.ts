@@ -12,7 +12,7 @@ async function consultar(barrio: string) {
   for (const url of OVERPASS) {
     try {
       const r = await fetch(url, {
-        method: "POST", signal: AbortSignal.timeout(100_000),
+        method: "POST", signal: AbortSignal.timeout(65_000), // dos intentos entran en el límite de 150 s
         headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "cupra-rutas/0.1" },
         body: "data=" + encodeURIComponent(consultaOverpass(barrio)),
       });
