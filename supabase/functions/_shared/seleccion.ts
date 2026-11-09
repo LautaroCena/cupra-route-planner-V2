@@ -96,7 +96,12 @@ export interface ResultadoSeleccion {
   elegidos: Elegido[];
   km: number;
   avisos: string[];
+  /** Las mejores que quedaron afuera (dentro del radio), para reemplazar una a mano. */
+  alternativas: { id: string; local: Local; valor: number }[];
 }
+
+/** Cuántas alternativas se devuelven por ruta. */
+export const ALTERNATIVAS_POR_RUTA = 5;
 
 /** Largo de un recorrido abierto, en el orden dado. */
 export function largo(puntos: Punto[], dist: Distancia): number {
@@ -247,5 +252,19 @@ export function seleccionarPorValor(
     avisos.push(`Hay ${elegidos.length + fijos.length} visitas que valen la pena en la zona; no se completan las ${p.limite}.`);
   }
   const completo = ordenExacto([...fijos.map((f) => ({ ...f, e: null as Elegido | null })), ...elegidos.map((e) => ({ ...e.local, e }))], dist, centro);
-  return { elegidos: completo.flatMap((x) => (x.e ? [x.e] : [])), km: largo([centro, ...completo], dist), avisos };
+
+  // 3) Alternativas: las que siguen en valor, medidas contra la ruta ya armada.
+  const enRuta = new Set(elegidos.map((e) => e.id));
+  const rutaFinal: Punto[] = [centro, ...completo];
+  const resto = preparados.filter((x) => !enRuta.has(x.c.id) && x.adentro.length).map((x) => {
+    let local = x.adentro[0], extra = Infinity;
+    for (const l of x.adentro) { const e = costoInsercion(rutaFinal, l, dist); if (e < extra) { extra = e; local = l; } }
+    return { x, local, extra };
+  });
+  const maxResto = Math.max(0, ...resto.map((o) => o.extra));
+  const alternativas = resto
+    .map((o) => ({ id: o.x.c.id, local: o.local, valor: valor({ ...o.x.c.factores, recorrido: maxResto > 0 ? 1 - o.extra / maxResto : 1 }, p.pesos) }))
+    .sort((a, b) => b.valor - a.valor || a.id.localeCompare(b.id))
+    .slice(0, ALTERNATIVAS_POR_RUTA);
+  return { elegidos: completo.flatMap((x) => (x.e ? [x.e] : [])), km: largo([centro, ...completo], dist), avisos, alternativas };
 }

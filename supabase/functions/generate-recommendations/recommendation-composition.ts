@@ -13,6 +13,8 @@ export interface ComposicionPorValor {
   valor: number;
   avisos: string[];
   enFranja: string[];
+  /** Siguientes mejores, con el local en el que entrarían. */
+  alternativas: { id: string; local: NonNullable<ScoredCandidate["locales"]>[number] }[];
 }
 
 /**
@@ -48,5 +50,6 @@ export function componerPorValor(input: {
     valor: r.elegidos.reduce((s, e) => s + e.valorSinRecorrido, 0),
     avisos: r.avisos,
     enFranja: r.elegidos.filter((e) => e.enFranja).map((e) => e.id),
+    alternativas: r.alternativas.map((a) => ({ id: a.id, local: a.local as NonNullable<ScoredCandidate["locales"]>[number] })),
   };
 }

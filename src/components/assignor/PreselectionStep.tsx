@@ -1,7 +1,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Save } from "lucide-react";
+import { RefreshCw, Save } from "lucide-react";
 import { Sucursal } from "@/types/sales";
 import ClientDetailCard from "./ClientDetailCard";
 
@@ -12,6 +12,9 @@ interface PreselectionStepProps {
   onToggleAll: () => void;
   onContinue: () => void;
   isSaving?: boolean;
+  /** Cambia la visita por la siguiente mejor del mismo vendedor. */
+  onReplace?: (id: string) => void;
+  canReplace?: (id: string) => boolean;
 }
 
 const PreselectionStep = ({ 
@@ -21,6 +24,8 @@ const PreselectionStep = ({
   onToggleAll,
   onContinue,
   isSaving = false,
+  onReplace,
+  canReplace,
 }: PreselectionStepProps) => {
   const allSelected = recommendations.length > 0 && selectedIds.length === recommendations.length;
 
@@ -54,12 +59,20 @@ const PreselectionStep = ({
 
       <div className="space-y-3">
         {recommendations.map((recomendacion) => (
-          <ClientDetailCard
-            key={recomendacion.id}
-            cliente={recomendacion}
-            isSelected={selectedIds.includes(recomendacion.id)}
-            onToggle={onToggle}
-          />
+          <div key={recomendacion.id} className="space-y-1">
+            <ClientDetailCard
+              cliente={recomendacion}
+              isSelected={selectedIds.includes(recomendacion.id)}
+              onToggle={onToggle}
+            />
+            {onReplace && canReplace?.(recomendacion.id) && (
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={() => onReplace(recomendacion.id)}>
+                  <RefreshCw className="w-3.5 h-3.5" /> Reemplazar por la siguiente mejor
+                </Button>
+              </div>
+            )}
+          </div>
         ))}
       </div>
     </div>

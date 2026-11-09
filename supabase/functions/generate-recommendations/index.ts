@@ -484,6 +484,10 @@ Deno.serve(async (req) => {
     const recomendaciones = armarRecomendaciones(plan.porVendedor, {
       request_id, nowIso, regalos, clientePorId, prospectoPorId, placesMap, oportunidadDe,
     });
+    // Las siguientes mejores de cada vendedor: no se guardan, sirven para reemplazar una visita en el panel.
+    const alternativas = armarRecomendaciones(plan.porVendedor.map((pv) => ({ ...pv, elegidos: pv.alternativas })), {
+      request_id, nowIso, regalos, clientePorId, prospectoPorId, placesMap, oportunidadDe,
+    });
 
     // ---- 11. Avisos para el asignador ----
     const zonaTexto = dedupeBarrios([...barriosFinales, ...comunasFinales]).join(", ") || "la zona seleccionada";
@@ -547,6 +551,7 @@ Deno.serve(async (req) => {
     console.log(`✅ ${recomendaciones.length} recomendaciones guardadas (${VERSION})`);
     return json({
       recomendaciones,
+      alternativas,
       resumen: {
         total_recomendaciones: recomendaciones.length,
         descripcion: limpiarJustificacion(null, descripcionBase, 2000),

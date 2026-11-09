@@ -77,6 +77,8 @@ export interface PlanVendedor {
   fueraDeSeleccion: Set<string>;
   cobertura: Cobertura;
   pool: Map<string, ScoredCandidate>;
+  /** Siguientes mejores, para reemplazar una visita a mano. */
+  alternativas: ScoredCandidate[];
 }
 export interface PlanResult { porVendedor: PlanVendedor[]; descubiertosGoogle: any[] }
 
@@ -126,11 +128,13 @@ export async function planificarRutas(input: PlanInput, deps: PlanDeps): Promise
       const compuesto = componerPorValor({ clients, prospects, centro: h, unavailableIds: usadosIds,
         estados: input.estados, permitirOtrosEstados: otrosEstados, parametros: input.parametros, dist });
       // Cada elegido va con el local en el que entró (puede no ser el principal).
-      const elegidos = compuesto.ids.map(id => {
-        const c = pool.get(id)!, l = compuesto.locales.get(id);
+      const conLocal = (id: string, l?: NonNullable<ScoredCandidate["locales"]>[number]) => {
+        const c = pool.get(id)!;
         return l ? { ...c, lat: l.lat, long: l.lng, direccion: l.direccion ?? c.direccion, barrio: l.barrio ?? c.barrio, client_place_id: c.es_prospecto ? null : l.place_id ?? null } : c;
-      });
-      return { h, pool, compuesto, elegidos, propios: elegidos.filter(c => !c.es_prospecto && (!input.estados.size || input.estados.has(c.estado_comercial))).length };
+      };
+      const elegidos = compuesto.ids.map(id => conLocal(id, compuesto.locales.get(id)));
+      const alternativas = compuesto.alternativas.filter(a => !usadosIds.has(a.id)).map(a => conLocal(a.id, a.local));
+      return { h, pool, compuesto, elegidos, alternativas, propios: elegidos.filter(c => !c.es_prospecto && (!input.estados.size || input.estados.has(c.estado_comercial))).length };
     };
     const extension = (r:ReturnType<typeof evaluar>) => Math.max(0,...r.elegidos.map(c=>distanciaKm(r.h,{lat:Number(c.lat),lng:Number(c.long)})));
     // Entre centros: más visitas, después más valor y, a igual valor, menos recorrido.
@@ -207,7 +211,7 @@ export async function planificarRutas(input: PlanInput, deps: PlanDeps): Promise
     }
     cobertura.fuera_de_seleccion = mejor?.compuesto.fueraDeSeleccion.length || 0;
     deps.log?.(`${vendedor.nombre}: ${cobertura.total}/8, ${cobertura.km_recorrido} km, valor ${cobertura.valor_total}; ${cobertura.obtenido.prospectos} prospectos.`);
-    porVendedor.push({ vendedor, hotspot: h, elegidos, fueraDeSeleccion: new Set(mejor?.compuesto.fueraDeSeleccion), cobertura, pool: mejor?.pool || new Map() });
+    porVendedor.push({ vendedor, hotspot: h, elegidos, alternativas: mejor?.alternativas || [], fueraDeSeleccion: new Set(mejor?.compuesto.fueraDeSeleccion), cobertura, pool: mejor?.pool || new Map() });
   }
   return { porVendedor, descubiertosGoogle: [...nuevos.values()] };
 }

@@ -1,4 +1,4 @@
-import { errorRuta, VISITAS_POR_DIA } from "../../supabase/functions/_shared/ruta";
+import { distanciaKm, errorRuta, VISITAS_POR_DIA } from "../../supabase/functions/_shared/ruta";
 import DatosAl from "@/components/shared/DatosAl";
 import { guardarAsignaciones } from "@/lib/asignaciones";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -53,6 +53,8 @@ const AssignorDashboard = () => {
   const draftStore = useAssignmentDraftStore();
 
   const [viewMode, setViewMode] = useDraftState<"list" | "map">("panel", "viewMode", "list");
+  // Siguientes mejores de cada vendedor, para reemplazar una visita propuesta.
+  const [alternativas, setAlternativas] = useDraftState<Sucursal[]>("panel", "alternativas", []);
   const [selectedCiudad, setSelectedCiudad] = useDraftState<string>("panel", "selectedCiudad", "all");
   const [selectedProvincia, setSelectedProvincia] = useDraftState<string>("panel", "selectedProvincia", "all");
   const [selectedVendedor, setSelectedVendedor] = useDraftState<string>("panel", "selectedVendedor", "all");
@@ -248,7 +250,7 @@ const AssignorDashboard = () => {
         selectedVendedoresData.ids.map((id, idx) => [id, selectedVendedoresData.nombres[idx] || id]),
       );
 
-      const mappedRecommendations: Sucursal[] = (data.recomendaciones || []).map((rec: any) => {
+      const mapear = (rec: any): Sucursal => {
         // Priority: API name > local lookup by ID > historical vendor name
         const vendedorNombre = rec.vendedor_recomendado_nombre
           || (rec.vendedor_recomendado_id ? vendedorNombrePorId.get(rec.vendedor_recomendado_id) : undefined)
@@ -277,7 +279,7 @@ const AssignorDashboard = () => {
           categoria_volumen: rec.score_volumen, score_recencia: rec.score_recencia_num,
           score_volumen: rec.score_volumen_num, score_comercial: rec.priority_score,
           participacion_mercado: rec.participacion,
-          ciudad_principa: rec.ciudades?.[0], provincia_principal: rec.provincias?.[0],
+          ciudad_principal: rec.ciudades?.[0], provincia_principal: rec.provincias?.[0],
           productos_comprados: rec.etiquetas || [], todas_ciudades: rec.ciudades || [],
           todos_vendedores: rec.vendedores || [], etiquetas: rec.etiquetas || [],
           telefonos: rec.telefonos || [], barrio_principal: rec.barrio_principal,
@@ -291,13 +293,15 @@ const AssignorDashboard = () => {
           estado_cliente: rec.estado_comercial || (rec.es_prospecto ? 'POTENCIAL' : undefined),
           rubro: rec.rubro ?? rec.factores_ia?.rubro ?? null,
         });
-      });
+      };
+      const mappedRecommendations: Sucursal[] = (data.recomendaciones || []).map(mapear);
 
       setGenerationProgress(100);
       await new Promise((resolve) => window.setTimeout(resolve, 350));
 
       if (draftStore.get<{ currentRequestId: string | null } | null>("recomendaciones", "state", null)?.currentRequestId !== requestId) return;
       setRecommendations(mappedRecommendations);
+      setAlternativas((data.alternativas || []).map(mapear));
       setAiInsights(data.resumen);
       setFlowStep("preselection");
       setSelectedSucursales([]);
@@ -333,6 +337,48 @@ const AssignorDashboard = () => {
       }
     }
     return filas.length > 0;
+  };
+
+  const claveVisita = (r: Sucursal) => (r.es_prospecto ? `P:${r.prospecto_place_id}` : `C:${r.client_id}`);
+  /** Cambia una visita propuesta por la siguiente mejor del mismo vendedor, en el mejor lugar del recorrido. */
+  const reemplazarVisita = (id: string) => {
+    const viejo = recommendations.find((r) => r.id === id);
+    if (!viejo) return;
+    const usados = new Set(recommendations.map(claveVisita));
+    const nuevo = alternativas.find((a) => a.vendedor_recomendado_id === viejo.vendedor_recomendado_id && !usados.has(claveVisita(a)));
+    if (!nuevo) {
+      toast({ title: "No quedan alternativas", description: "No hay otra visita que valga la pena en la zona. Podés destildarla o generar de nuevo." });
+      return;
+    }
+    setAlternativas(alternativas.filter((a) => a !== nuevo));
+    // Lugar en el recorrido: donde menos lo alarga, entre las demás visitas de ese vendedor.
+    const sinViejo = recommendations.filter((r) => r.id !== id);
+    const delVendedor = sinViejo.filter((r) => r.vendedor_recomendado_id === viejo.vendedor_recomendado_id);
+    const punto = (r: Sucursal) => ({ lat: Number(r.latitud), lng: Number(r.longitud) });
+    let despuesDe = delVendedor.length - 1, mejor = Infinity;
+    if (delVendedor.length) {
+      mejor = distanciaKm(punto(nuevo), punto(delVendedor[0]));
+      despuesDe = -1;
+      for (let i = 0; i < delVendedor.length; i++) {
+        const sig = delVendedor[i + 1];
+        const extra = sig
+          ? distanciaKm(punto(delVendedor[i]), punto(nuevo)) + distanciaKm(punto(nuevo), punto(sig)) - distanciaKm(punto(delVendedor[i]), punto(sig))
+          : distanciaKm(punto(delVendedor[i]), punto(nuevo));
+        if (extra < mejor) { mejor = extra; despuesDe = i; }
+      }
+    }
+    const lista = [...sinViejo];
+    const pos = despuesDe < 0 ? (delVendedor[0] ? lista.indexOf(delVendedor[0]) : lista.length) : lista.indexOf(delVendedor[despuesDe]) + 1;
+    lista.splice(pos, 0, nuevo);
+    setRecommendations(lista);
+    setSelectedSucursales([...selectedSucursales.filter((s) => s !== id), ...(selectedSucursales.includes(id) ? [nuevo.id] : [])]);
+    toast({ title: "Visita reemplazada", description: `${viejo.nombre} → ${nuevo.nombre}` });
+  };
+  const puedeReemplazar = (id: string) => {
+    const r = recommendations.find((x) => x.id === id);
+    if (!r) return false;
+    const usados = new Set(recommendations.map(claveVisita));
+    return alternativas.some((a) => a.vendedor_recomendado_id === r.vendedor_recomendado_id && !usados.has(claveVisita(a)));
   };
 
   const handleRequestAssignmentConfirm = () => {
@@ -425,7 +471,7 @@ const AssignorDashboard = () => {
     }
   };
   const handleBackToPreselection = () => setFlowStep("preselection");
-  const handleBackToRecommendations = () => { setShowExitDialog(false); resetToInitial(); setResumeFlowStep(null); setSelectedCiudad("all"); setSelectedProvincia("all"); setSelectedVendedor("all"); setSelectedVendedoresIds([]); };
+  const handleBackToRecommendations = () => { setShowExitDialog(false); resetToInitial(); setAlternativas([]); setResumeFlowStep(null); setSelectedCiudad("all"); setSelectedProvincia("all"); setSelectedVendedor("all"); setSelectedVendedoresIds([]); };
   const handleDiscardDraft = () => {
     const step = resumeFlowStep || flowStep;
     if (step === "edit-select" || step === "edit-kanban") {
@@ -694,7 +740,7 @@ const AssignorDashboard = () => {
 
             <CardContent className="pt-6">
               {viewMode === "list" ? (
-                <PreselectionStep recommendations={filteredRecommendations} selectedIds={selectedSucursales} onToggle={toggleSucursalStore} onToggleAll={toggleAllSucursalesStore} onContinue={handleRequestAssignmentConfirm} isSaving={isSavingAssignments} />
+                <PreselectionStep recommendations={filteredRecommendations} selectedIds={selectedSucursales} onToggle={toggleSucursalStore} onToggleAll={toggleAllSucursalesStore} onContinue={handleRequestAssignmentConfirm} isSaving={isSavingAssignments} onReplace={reemplazarVisita} canReplace={puedeReemplazar} />
               ) : (
                 <ResultsMap sucursales={filteredRecommendations} selectedIds={selectedSucursales} onToggle={toggleSucursalStore} onToggleAll={toggleAllSucursalesStore} onContinue={handleRequestAssignmentConfirm} />
               )}

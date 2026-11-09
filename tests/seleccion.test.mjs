@@ -72,3 +72,18 @@ test('con visitas fijas (ruta desde el mapa) completa los lugares libres y las c
   assert.equal(r.elegidos.length, 2);
   assert.ok(r.km >= 0.2);
 });
+
+test('devuelve las siguientes mejores que quedaron afuera, sin repetir las elegidas', () => {
+  const cands = Array.from({ length: 12 }, (_, i) => C(`c${i}`, 0.1 * (i % 4), 0.1 * Math.floor(i / 4), i / 12));
+  const r = sel(cands);
+  assert.equal(r.elegidos.length, 8);
+  assert.ok(r.alternativas.length > 0 && r.alternativas.length <= 5);
+  const elegidos = new Set(r.elegidos.map((e) => e.id));
+  assert.ok(r.alternativas.every((a) => !elegidos.has(a.id)));
+  // Ordenadas de mayor a menor valor.
+  assert.deepEqual([...r.alternativas].sort((a, b) => b.valor - a.valor), r.alternativas);
+});
+
+test('sin candidatos de sobra, no hay alternativas', () => {
+  assert.deepEqual(sel([C('a', 0.1, 0), C('b', 0.2, 0)]).alternativas, []);
+});
