@@ -88,3 +88,23 @@ test("las filas que arma el motor entran en recomendaciones_ia", async () => {
     await db.close();
   }
 });
+
+test("una visita nueva reemplaza las pendientes de días anteriores del mismo negocio", async () => {
+  const db = await baseMigrada();
+  try {
+    const { rows: [u] } = await db.query("INSERT INTO auth.users(email) VALUES ('v@prueba') RETURNING id");
+    await db.query("INSERT INTO profiles(user_id, email, nombre, rol, activo) VALUES ($1, 'v@prueba', 'Vendedor Prueba', 'vendedor', true) ON CONFLICT (user_id) DO UPDATE SET rol='vendedor', activo=true", [u.id]);
+    await db.exec(`INSERT INTO clientes(client_id, razon_social) VALUES ('c1', 'Uno'), ('c2', 'Dos');`);
+    const insertar = (cliente, fecha, estado = "Asignado") => db.query(
+      "INSERT INTO asignaciones_vendedores_clientes(vendedor_id, client_id, estado, fecha_programada) VALUES ($1, $2, $3, $4)", [u.id, cliente, estado, fecha]);
+    await insertar("c1", "2026-11-01", "Visitado");
+    await insertar("c1", "2026-11-05");
+    await insertar("c2", "2026-11-05");
+    // Hoy se vuelve a asignar c1: reemplaza la pendiente del 05/11, no la ya visitada ni la de otro cliente.
+    await insertar("c1", "2026-11-09");
+    const { rows } = await db.query("SELECT client_id, fecha_programada::text f, estado::text e FROM asignaciones_vendedores_clientes ORDER BY client_id, fecha_programada");
+    assert.deepEqual(rows.map((r) => `${r.client_id} ${r.f} ${r.e}`), ["c1 2026-11-01 Visitado", "c1 2026-11-09 Asignado", "c2 2026-11-05 Asignado"]);
+  } finally {
+    await db.close();
+  }
+});
