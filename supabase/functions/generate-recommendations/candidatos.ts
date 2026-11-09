@@ -25,7 +25,13 @@ import {
 
 export const MS_DIA = 24 * 60 * 60 * 1000;
 
-export interface RevisitInfo { dueAt: number; source: string; }
+export interface RevisitInfo { dueAt: number; source: string; recordatorio?: boolean }
+
+/** Recordatorio que dejó el vendedor al cerrar una visita ("volver en 3 días", con fecha). */
+export interface RecordatorioVendedor { fecha_recordatorio: string; created_at: string; nota?: string | null; titulo?: string | null }
+
+/** Días después de la fecha pedida en los que el negocio sube al máximo de Oportunidad. */
+export const DIAS_REVISITA_PRIORITARIA = 14;
 
 export interface ScoreOptions {
   /** Todos los locales de cada cliente (client_places), además del principal. */
@@ -78,6 +84,8 @@ export interface ScoredCandidate {
   client_place_id?: string | null;
   /** Factores de valor sin recorrido (_shared/valor.ts); el recorrido lo agrega la selección. */
   factores?: { recuperacion: number | null; potencial: number | null; oportunidad?: number | null };
+  /** El vendedor pidió volver y la fecha ya llegó: va con Oportunidad al máximo. */
+  revisita?: { fecha: string; motivo: string; recordatorio: boolean } | null;
   /** Locales del cliente dentro del alcance. El primero es el principal. */
   locales?: { lat: number; lng: number; place_id?: string | null; direccion?: string | null; barrio?: string | null }[];
 }
@@ -167,9 +175,22 @@ const MIN_CONFIANZA_EXTRACCION = 0.5;
 export function buildRevisitMap(
   feedbacksMap: Map<string, any[]>,
   extracciones?: Map<string, FeedbackExtraccion>,
+  recordatorios?: Map<string, RecordatorioVendedor[]>,
 ): Map<string, RevisitInfo> {
   const map = new Map<string, RevisitInfo>();
+  // El recordatorio con fecha manda sobre lo que se deduce del texto. Deja de valer si
+  // después de crearlo hubo otra visita (ya se cumplió).
+  for (const [id, lista] of recordatorios ?? []) {
+    const ultimaVisita = Math.max(0, ...(feedbacksMap.get(id) || []).map((fb: any) => new Date(fb.created_at).getTime() || 0));
+    const vigente = lista
+      .filter((r) => Number.isFinite(new Date(r.fecha_recordatorio).getTime()) && new Date(r.created_at).getTime() + 60_000 >= ultimaVisita)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    if (!vigente) continue;
+    const nota = (vigente.nota || vigente.titulo || "").trim();
+    map.set(id, { dueAt: new Date(vigente.fecha_recordatorio).getTime(), source: nota ? `Recordatorio del vendedor: ${nota}` : "Recordatorio del vendedor", recordatorio: true });
+  }
   for (const [id, feedbacks] of feedbacksMap) {
+    if (map.has(id)) continue;
     const fb = feedbacks[0]; // vienen ordenados por fecha desc: vale el más reciente
     if (!fb) continue;
     const base = fb.created_at ? new Date(fb.created_at).getTime() : Date.now();
@@ -249,6 +270,7 @@ export function scoreClients(
     // Pausa después de una visita con contacto, salvo que el vendedor haya dejado fecha de revisita.
     if (!revisit && pausaPorVisita(feedbacks, false, now).excluido) continue;
     const revisitBonus = revisit ? 30 : 0;
+    const revisitaVencida = !!revisit && now.getTime() - revisit.dueAt <= DIAS_REVISITA_PRIORITARIA * MS_DIA;
 
     const cd = enCooldown(c.last_recommendation_at, options.cooldownDays ?? 0, now);
     if (cd.bloqueado) continue;
@@ -294,7 +316,8 @@ export function scoreClients(
       cadencia_dias: c.cadencia_dias ?? null,
       alerta_nc: alertaNotaCredito(c),
       origen: "cartera",
-      factores: { recuperacion: recuperacion({ dias_sin_comprar: dias, cadencia_dias: c.cadencia_dias ?? null }), potencial: c.factor_potencial ?? null, oportunidad: c.factor_oportunidad ?? null },
+      factores: { recuperacion: recuperacion({ dias_sin_comprar: dias, cadencia_dias: c.cadencia_dias ?? null }), potencial: c.factor_potencial ?? null, oportunidad: revisitaVencida ? 1 : c.factor_oportunidad ?? null },
+      revisita: revisitaVencida ? { fecha: new Date(revisit!.dueAt).toISOString().slice(0, 10), motivo: revisit!.source, recordatorio: !!revisit!.recordatorio } : null,
       locales,
     });
   }
@@ -340,6 +363,7 @@ export function scoreProspects(
     if (revisit && revisit.dueAt > now.getTime()) continue;
     if (!revisit && pausaPorVisita(feedbacks, true, now).excluido) continue;
     const revisitBonus = revisit ? 30 : 0;
+    const revisitaVencida = !!revisit && now.getTime() - revisit.dueAt <= DIAS_REVISITA_PRIORITARIA * MS_DIA;
 
     const cd = enCooldown(p.last_recommendation_at, options.cooldownDays ?? 0, now);
     if (cd.bloqueado) continue;
@@ -377,7 +401,8 @@ export function scoreProspects(
       prioridad_comercial: Math.round(score_comercial * 0.4),
       origen: "base",
       // Un prospecto no se recupera: no compró nunca. Su potencial sale de lo que se sabe del lugar.
-      factores: { ...factoresProspecto(p), oportunidad: p.factor_oportunidad ?? null },
+      factores: { ...factoresProspecto(p), oportunidad: revisitaVencida ? 1 : p.factor_oportunidad ?? null },
+      revisita: revisitaVencida ? { fecha: new Date(revisit!.dueAt).toISOString().slice(0, 10), motivo: revisit!.source, recordatorio: !!revisit!.recordatorio } : null,
       locales: [{ lat, lng: long, place_id: p.place_id, direccion: p.direccion ?? null, barrio: p.barrio ?? null }],
     });
   }

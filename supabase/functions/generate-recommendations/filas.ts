@@ -21,7 +21,9 @@ export function armarRecomendaciones(planes: PlanVendedor[], ctx: ContextoFilas)
     for (const c of pv.elegidos) {
       const propuestaRegalos = regalos && !c.alerta_nc ? "Proponer regalos empresariales y consultar quién gestiona compras, RR. HH. o eventos. Validar interés y ocasión de compra. " : "";
       const fallback = justificacionComercial(c);
-      const cuerpo = limpiarJustificacion([fraseOportunidad(oportunidadDe(c)), fallback].filter(Boolean).join(" "), fallback);
+      // Si el vendedor pidió volver y la fecha llegó, eso va primero y reemplaza a la fecha comercial.
+      const fraseRevisita = c.revisita ? `El vendedor pidió volver el ${c.revisita.fecha.split("-").reverse().join("/")}.` : null;
+      const cuerpo = limpiarJustificacion([fraseRevisita ?? fraseOportunidad(oportunidadDe(c)), fallback].filter(Boolean).join(" "), fallback);
       const justificacion = propuestaRegalos + (c.rubro && !cuerpo.toLowerCase().includes(c.rubro.toLowerCase()) ? `${c.rubro} · ${cuerpo}` : cuerpo);
       const op = oportunidadDe(c);
       const factores = {

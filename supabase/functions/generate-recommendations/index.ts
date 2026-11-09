@@ -348,6 +348,16 @@ Deno.serve(async (req) => {
         extracciones.set(fb.id, { feedback_id: fb.id, revisit_date: fb.revisit_date, resumen: fb.resumen, confianza: fb.confianza } as FeedbackExtraccion);
       }
     }
+    // Recordatorios pendientes que dejaron los vendedores (fecha explícita para volver).
+    const { data: recordatorios, error: recErr } = await db.from("recordatorios")
+      .select("client_id, prospecto_place_id, fecha_recordatorio, created_at, nota, titulo").eq("completado", false).limit(5000);
+    if (recErr) throw recErr;
+    const recordatoriosClientes = new Map<string, any[]>();
+    const recordatoriosProspectos = new Map<string, any[]>();
+    for (const r of recordatorios || []) {
+      if (r.client_id) recordatoriosClientes.set(r.client_id, [...(recordatoriosClientes.get(r.client_id) || []), r]);
+      else if (r.prospecto_place_id) recordatoriosProspectos.set(r.prospecto_place_id, [...(recordatoriosProspectos.get(r.prospecto_place_id) || []), r]);
+    }
     const feedbacksClientes = new Map<string, any[]>();
     const feedbacksProspectos = new Map<string, any[]>();
     for (const fb of feedbacks) {
@@ -396,8 +406,8 @@ Deno.serve(async (req) => {
       prospectosZona,
       feedbacksClientes,
       feedbacksProspectos,
-      revisitClientes: buildRevisitMap(feedbacksClientes, extracciones),
-      revisitProspectos: buildRevisitMap(feedbacksProspectos, extracciones),
+      revisitClientes: buildRevisitMap(feedbacksClientes, extracciones, recordatoriosClientes),
+      revisitProspectos: buildRevisitMap(feedbacksProspectos, extracciones, recordatoriosProspectos),
       posiblesClientes,
       estados,
       precioCajaCanal,
