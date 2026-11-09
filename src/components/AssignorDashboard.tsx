@@ -46,7 +46,6 @@ const AssignorDashboard = () => {
     isLoading, setIsLoading,
     aiInsights, setAiInsights,
     vendedoresData, setVendedoresData,
-    instruccionesAdicionales, setInstruccionesAdicionales,
     resetToInitial,
     setCurrentRequestId,
   } = useRecommendationsStore();
@@ -202,7 +201,6 @@ const AssignorDashboard = () => {
         estados: Array.isArray(filters.estados) ? filters.estados : [],
         regalos_empresariales: filters.regalos_empresariales === true,
         rubros: Array.isArray(filters.rubros) ? filters.rubros : [],
-        instrucciones_adicionales: instruccionesAdicionales || null,
       };
 
       const abortController = new AbortController();
@@ -642,8 +640,6 @@ const AssignorDashboard = () => {
                     isLoading={isLoading}
                     onCancel={handleCancelRecommendations}
                     placesData={placesData}
-                    instruccionesAdicionales={instruccionesAdicionales}
-                    onInstruccionesChange={setInstruccionesAdicionales}
                   />
                 </CardContent>
               </Card>

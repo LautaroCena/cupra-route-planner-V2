@@ -3,15 +3,13 @@ import { candidatoRegalos } from "../../../supabase/functions/_shared/prospect-c
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, MapPin, X, ChevronRight, LayoutGrid, Search, Square, Hand, Map as MapIcon } from "lucide-react";
+import { Sparkles, MapPin, X, LayoutGrid, Search, Square, Hand, Map as MapIcon } from "lucide-react";
 import ManualAssignment from "./ManualAssignment";
 import MapaZonaAsignacion from "./MapaZonaAsignacion";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { toTitleCase } from "@/lib/format";
 import { GEO_PROVINCIAS, geoComunas, geoBarrios } from "@/data/geoBuenosAires";
@@ -29,13 +27,10 @@ interface FilterPanelProps {
   isLoading: boolean;
   onCancel?: () => void;
   placesData: Array<{ comuna: string | null, barrio_principal: string | null, provincia_principal: string | null }>;
-  instruccionesAdicionales: string;
-  onInstruccionesChange: (value: string) => void;
 }
 
 const FilterPanel = ({
-  onRequestRecommendations, isLoading, onCancel, placesData,
-  instruccionesAdicionales, onInstruccionesChange
+  onRequestRecommendations, isLoading, onCancel, placesData
 }: FilterPanelProps) => {
   const [mode, setMode] = useDraftState<'area' | 'custom' | 'manual' | 'mapa'>("filtros", "mode", 'area');
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
@@ -47,7 +42,6 @@ const FilterPanel = ({
   const [areas, setAreas] = useState<Area[]>([]);
   const [selectedArea, setSelectedArea] = useDraftState<string>("filtros", "selectedArea", 'none');
   const [isLoadingAreas, setIsLoadingAreas] = useState(true);
-  const [isAIInstructionsOpen, setIsAIInstructionsOpen] = useDraftState("filtros", "isAIInstructionsOpen", false);
   // Qué tipo de visitas pedir: vacío = todos los estados, sin cupos.
   const [selectedEstados, setSelectedEstados] = useDraftState<string[]>("filtros", "selectedEstados", []);
   const [selectedRubros, setSelectedRubros] = useDraftState<string[]>("filtros", "selectedRubros", []);
@@ -288,7 +282,6 @@ const FilterPanel = ({
             loadingRubros={loadingRubros}
           />
 
-          <AIInstructionsCollapsible isOpen={isAIInstructionsOpen} onOpenChange={setIsAIInstructionsOpen} value={instruccionesAdicionales} onChange={onInstruccionesChange} />
 
           {isLoading ? (
             <Button type="button" onClick={onCancel} variant="destructive" size="lg" className="w-full">
@@ -373,7 +366,6 @@ const FilterPanel = ({
             loadingRubros={loadingRubros}
           />
 
-          <AIInstructionsCollapsible isOpen={isAIInstructionsOpen} onOpenChange={setIsAIInstructionsOpen} value={instruccionesAdicionales} onChange={onInstruccionesChange} />
 
           {isLoading ? (
             <Button type="button" onClick={onCancel} variant="destructive" size="lg" className="w-full">
@@ -439,39 +431,11 @@ function VisitTypeFilters({ regalos, onRegalosChange, estados, onEstadosChange, 
       </div>
       <p className="text-xs text-muted-foreground leading-relaxed">
         {estados.length === 0
-          ? "8 visitas por vendedor dentro de 1,5 km. Se prioriza la cartera y se completa con prospectos, sin cupos por estado."
-          : `Objetivo: 8 visitas por vendedor, priorizando ${ESTADOS.filter((e) => estados.includes(e.value)).map((e) => e.plural.toLowerCase()).join(" y ")}. Si no alcanzan, se proponen otras visitas disponibles y se informa la sustitución.`}
+          ? "Hasta 8 visitas por vendedor dentro de 1,5 km, elegidas por valor. Se prioriza la cartera y se completa con prospectos, sin cupos por estado."
+          : `Objetivo: hasta 8 visitas por vendedor, priorizando ${ESTADOS.filter((e) => estados.includes(e.value)).map((e) => e.plural.toLowerCase()).join(" y ")}. Si no alcanzan, se proponen otras visitas disponibles y se informa la sustitución.`}
         {rubros.length > 0 && " Solo se incluyen clientes y prospectos de los rubros elegidos."}
       </p>
     </div>
-  );
-}
-
-function AIInstructionsCollapsible({ isOpen, onOpenChange, value, onChange }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; value: string; onChange: (value: string) => void;
-}) {
-  return (
-    <Collapsible open={isOpen} onOpenChange={onOpenChange}>
-      <CollapsibleTrigger asChild>
-        <button type="button" className="w-full flex items-center justify-between py-3.5 px-5 rounded-xl bg-secondary/20 hover:bg-secondary/30 transition-colors">
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-primary/70" />
-            <span className="text-sm font-medium">Instrucciones para la IA</span>
-          </div>
-          <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} />
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="pt-3">
-          <Textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Ej: Priorizar clientes con más de 90 días sin compra..."
-            className="min-h-[80px] bg-secondary/20 border-border/20 text-sm resize-none"
-          />
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
   );
 }
 
