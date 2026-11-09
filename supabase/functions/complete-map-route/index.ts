@@ -75,7 +75,8 @@ export async function handler(req: Request): Promise<Response> {
         .order("id").range(from, to)),
     ]);
     if (!perfiles.some(p => p.user_id === body.vendedor_id && p.activo)) throw new RequestError("El vendedor no está activo.", 422, "INVALID_VENDOR");
-    const cartera = carteraDelVendedor(clientes, perfiles, body.vendedor_id);
+    const { data: vinculos } = await db.from("vendedores_vinculados").select("nombre,user_id");
+    const cartera = carteraDelVendedor(clientes, perfiles, body.vendedor_id, vinculos || []);
     const elegidos = cartera.filter(c => clientesIds.includes(c.client_id));
     const { puntos: clientesPuntos } = puntosDeCartera(elegidos, places);
     if (clientesPuntos.length !== clientesIds.length) throw new RequestError("La cartera o las ubicaciones cambiaron. Volvé a cargar el vendedor.", 409, "STALE_SELECTION");

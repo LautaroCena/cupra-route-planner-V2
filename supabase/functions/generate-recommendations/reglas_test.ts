@@ -154,3 +154,13 @@ Deno.test("pausa después de visitar: 14 días cliente, 30 prospecto, 90 sin int
   // Manda el comentario más reciente.
   assertFalse(pausaPorVisita([...visita(100, { estado_cliente: "Sin interés" }), ...visita(40)], true, NOW).excluido);
 });
+
+Deno.test("el vínculo fijo del administrador manda sobre lo que se adivina por el nombre", () => {
+  const perfiles = [{ user_id: "u-leandro", nombre: "Leandro Mutuverria" }, { user_id: "u-lucas", nombre: "Lucas Pérez" }];
+  // Sin vínculo, "LEO MUTU" (un apodo) no se puede adivinar; con vínculo, sí.
+  assertEquals(crearResolvedorVendedores(perfiles).resolver("LEO MUTU"), null);
+  const r = crearResolvedorVendedores(perfiles, [{ nombre: "LEO MUTU", user_id: "u-leandro" }, { nombre: "LUCAS PEREZ", user_id: "u-leandro" }]);
+  assertEquals(r.resolver("leo mutu"), "u-leandro");
+  // El vínculo gana aunque el nombre coincida con otro perfil.
+  assertEquals(r.resolver("Lucas Pérez"), "u-leandro");
+});

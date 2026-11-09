@@ -141,8 +141,13 @@ export interface ResolvedorVendedores {
  * 3) Todas las palabras del nombre corto están en el largo ("LEANDRO" → "Leandro Pérez"),
  *    SOLO si hay un único perfil posible.
  * Nunca por "contiene": "MARIANA" no es "ANA".
+ * Antes que todo eso, el vínculo fijo que cargó un administrador (vendedores_vinculados).
  */
-export function crearResolvedorVendedores(perfiles: { user_id: string; nombre: string | null }[]): ResolvedorVendedores {
+export function crearResolvedorVendedores(
+  perfiles: { user_id: string; nombre: string | null }[],
+  vinculos: { nombre: string; user_id: string }[] = [],
+): ResolvedorVendedores {
+  const fijos = new Map(vinculos.map((v) => [normalizarNombrePersona(v.nombre), v.user_id]));
   const lista = perfiles
     .filter((p) => p?.user_id && p?.nombre)
     .map((p) => ({ id: p.user_id, key: normalizarNombrePersona(p.nombre), toks: tokens(normalizarNombrePersona(p.nombre)) }))
@@ -152,6 +157,7 @@ export function crearResolvedorVendedores(perfiles: { user_id: string; nombre: s
   const resolver = (nombre: string | null | undefined): string | null => {
     const key = normalizarNombrePersona(nombre);
     if (!key) return null;
+    if (fijos.has(key)) return fijos.get(key)!;
     if (cache.has(key)) return cache.get(key)!;
 
     let result: string | null = null;

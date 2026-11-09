@@ -68,8 +68,9 @@ export function ubicacionesPreferidas(places: UbicacionMapa[]): Map<string, Ubic
   return result;
 }
 
-export function carteraDelVendedor(clientes: ClienteMapa[], perfiles: { user_id: string; nombre: string | null }[], vendedorId: string) {
-  const resolvedor = crearResolvedorVendedores(perfiles);
+export function carteraDelVendedor(clientes: ClienteMapa[], perfiles: { user_id: string; nombre: string | null }[], vendedorId: string,
+  vinculos: { nombre: string; user_id: string }[] = []) {
+  const resolvedor = crearResolvedorVendedores(perfiles, vinculos);
   return clientes.filter(c => {
     // La cartera actual es autoridad. Un dueño diferente no se sustituye por un vendedor histórico.
     const nombres = c.vendedor_actual?.trim() ? [c.vendedor_actual] : [c.vendedor_principal, ...(c.todos_vendedores || [])];

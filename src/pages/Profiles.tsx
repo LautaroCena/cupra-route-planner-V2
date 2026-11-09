@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Wine, LogOut, User, ArrowLeft, Pencil, Filter, UserX, UserPlus, Briefcase, KeyRound } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import PermisosMatriz from "@/components/admin/PermisosMatriz";
+import VendedoresDelExcel from "@/components/admin/VendedoresDelExcel";
 import { useToast } from "@/hooks/use-toast";
 import cupraLogo from "@/assets/cupra-logo-new.png";
 import {
@@ -765,6 +766,8 @@ const Profiles = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <VendedoresDelExcel puedeEditar={profile.rol === "administrador"} />
       </main>
     </div>
   );

@@ -106,7 +106,8 @@ export default function MapaZonaAsignacion({ vendedores, onIrAManual }: { vended
           fetchAllRows((from, to) => supabase.from("profiles").select("user_id,nombre")
             .or("rol.eq.vendedor,perfil_ventas.eq.true").order("user_id").range(from, to)),
         ]);
-        const clientesCartera = carteraDelVendedor(clientes, perfiles, vendedorId);
+        const { data: vinculos } = await (supabase as unknown as { from: (t: string) => any }).from("vendedores_vinculados").select("nombre,user_id");
+        const clientesCartera = carteraDelVendedor(clientes, perfiles, vendedorId, vinculos || []);
         const places = await fetchInPages<UbicacionMapa>(clientesCartera.map(c => c.client_id), (chunk, from, to) =>
           supabase.from("client_places")
             .select("id,client_id,lat,long,is_primary,direccion_verificada,direccion_principal,barrio_principal,comuna")

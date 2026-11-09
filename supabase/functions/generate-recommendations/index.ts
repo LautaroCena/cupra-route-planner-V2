@@ -209,7 +209,9 @@ Deno.serve(async (req) => {
     const perfilesActivos = await fetchAll((from, to) => db.from("profiles").select("user_id, nombre").order("user_id").range(from, to));
     const perfiles = new Map<string, any>();
     [...(perfilesActivos || []), ...vendedoresData].forEach((p: any) => p?.user_id && perfiles.set(p.user_id, p));
-    const resolvedor = crearResolvedorVendedores([...perfiles.values()]);
+    const { data: vinculos, error: vincErr } = await db.from("vendedores_vinculados").select("nombre,user_id");
+    if (vincErr) throw vincErr;
+    const resolvedor = crearResolvedorVendedores([...perfiles.values()], vinculos || []);
     const idsVendedores = new Set(vendedoresData.map((v: any) => v.user_id));
     const nombresSinPerfil = new Map<string, number>();
     /** Dueño de la cuenta: último vendedor → vendedor histórico → cualquiera del historial. */
@@ -523,6 +525,7 @@ Deno.serve(async (req) => {
     if (nombresSinPerfil.size > 0) {
       const lista = [...nombresSinPerfil.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([n, k]) => `${n} (${k})`).join(", ");
       console.warn(`Vendedores del Excel sin perfil: ${lista}`);
+      avisos.push(`Hay nombres de vendedor del Excel sin usuario en la app: ${lista}. Sus clientes no entran en ninguna ruta; vinculalos en Perfiles → Vendedores del Excel.`);
     }
 
     const paraDb = recomendaciones.map(filaParaDb);
