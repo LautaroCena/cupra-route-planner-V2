@@ -13,6 +13,8 @@ export interface ComposicionPorValor {
   valor: number;
   avisos: string[];
   enFranja: string[];
+  /** Cuántos recordatorios vencidos entraron (tienen que entrar). */
+  obligatorios: number;
   /** Siguientes mejores, con el local en el que entrarían. */
   alternativas: { id: string; local: NonNullable<ScoredCandidate["locales"]>[number] }[];
 }
@@ -36,7 +38,7 @@ export function componerPorValor(input: {
   const porId = new Map(candidatas.map((c) => [c.client_id, c]));
   const r = seleccionarPorValor(
     centro,
-    candidatas.map((c) => ({ id: c.client_id, factores: c.factores ?? { recuperacion: null, potencial: null }, locales: c.locales! })),
+    candidatas.map((c) => ({ id: c.client_id, factores: c.factores ?? { recuperacion: null, potencial: null }, locales: c.locales!, obligatorio: !!c.revisita?.recordatorio })),
     input.dist ?? distanciaKm,
     distanciaKm,
     input.parametros,
@@ -50,6 +52,7 @@ export function componerPorValor(input: {
     valor: r.elegidos.reduce((s, e) => s + e.valorSinRecorrido, 0),
     avisos: r.avisos,
     enFranja: r.elegidos.filter((e) => e.enFranja).map((e) => e.id),
+    obligatorios: r.elegidos.filter((e) => e.obligatorio).length,
     alternativas: r.alternativas.map((a) => ({ id: a.id, local: a.local as NonNullable<ScoredCandidate["locales"]>[number] })),
   };
 }

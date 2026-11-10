@@ -41,3 +41,11 @@ Deno.test("el recordatorio manda sobre lo que se deduce del texto", () => {
   const m = buildRevisitMap(feedbacks, undefined, new Map([["c1", [{ fecha_recordatorio: dia(1), created_at: dia(-2) }]]]));
   assertEquals(m.get("c1")?.dueAt, new Date(dia(1)).getTime());
 });
+
+Deno.test("un recordatorio vencido marca al negocio como obligatorio; uno deducido del texto, no", () => {
+  const conRecordatorio = buildRevisitMap(new Map(), undefined, new Map([["c1", [{ fecha_recordatorio: dia(-1), created_at: dia(-4) }]]]));
+  assertEquals(puntuar(conRecordatorio)[0].revisita?.recordatorio, true);
+  const feedbacks = new Map([["c1", [{ id: "f1", created_at: dia(-8), feedback: "volver en una semana" }]]]);
+  const porTexto = buildRevisitMap(feedbacks, undefined, new Map());
+  assertEquals(puntuar(porTexto, feedbacks)[0].revisita?.recordatorio, false);
+});

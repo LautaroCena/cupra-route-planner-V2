@@ -87,3 +87,18 @@ test('devuelve las siguientes mejores que quedaron afuera, sin repetir las elegi
 test('sin candidatos de sobra, no hay alternativas', () => {
   assert.deepEqual(sel([C('a', 0.1, 0), C('b', 0.2, 0)]).alternativas, []);
 });
+
+test('un recordatorio vencido entra aunque valga poco, y la franja no lo saca', () => {
+  // 9 candidatos de alto valor y uno obligatorio de valor bajo: entra el obligatorio.
+  const cands = Array.from({ length: 9 }, (_, i) => C(`alto${i}`, 0.1 * (i % 3), 0.1 * Math.floor(i / 3), 1, 1));
+  const obligatorio = { ...C('pidio-volver', 0.05, 0.05, 0, 0), obligatorio: true };
+  const r = sel([...cands, obligatorio, C('franja', 1.55, 0, 1, 1)]);
+  assert.equal(r.elegidos.length, 8);
+  assert.ok(r.elegidos.some((e) => e.id === 'pidio-volver' && e.obligatorio));
+});
+
+test('sin obligatorios, el de valor bajo queda afuera', () => {
+  const cands = Array.from({ length: 9 }, (_, i) => C(`alto${i}`, 0.1 * (i % 3), 0.1 * Math.floor(i / 3), 1, 1));
+  const r = sel([...cands, C('pidio-volver', 0.05, 0.05, 0, 0)]);
+  assert.ok(!r.elegidos.some((e) => e.id === 'pidio-volver'));
+});

@@ -21,6 +21,8 @@ export interface CandidatoRuta {
   /** Factores sin recorrido: lo agrega la selección. */
   factores: Omit<Factores, "recorrido">;
   locales: Local[];
+  /** El vendedor pidió volver y la fecha llegó: entra primero si está al alcance, y no se reemplaza. */
+  obligatorio?: boolean;
 }
 
 export interface ParametrosSeleccion {
@@ -90,6 +92,7 @@ export interface Elegido {
   /** Valor con el que entró, incluido el recorrido en ese momento. */
   valor: number;
   enFranja: boolean;
+  obligatorio?: boolean;
 }
 
 export interface ResultadoSeleccion {
@@ -219,9 +222,9 @@ export function seleccionarPorValor(
     const maxExtra = Math.max(...opciones.map((o) => o.extra));
     const puntuar = (o: typeof opciones[number]) =>
       valor({ ...o.x.c.factores, recorrido: maxExtra > 0 ? 1 - o.extra / maxExtra : 1 }, p.pesos);
-    opciones.sort((a, b) => puntuar(b) - puntuar(a) || a.x.c.id.localeCompare(b.x.c.id));
+    opciones.sort((a, b) => Number(!!b.x.c.obligatorio) - Number(!!a.x.c.obligatorio) || puntuar(b) - puntuar(a) || a.x.c.id.localeCompare(b.x.c.id));
     const gana = opciones[0];
-    elegidos.push({ id: gana.x.c.id, local: gana.local, valorSinRecorrido: sinRecorrido(gana.x.c), valor: puntuar(gana), enFranja: false });
+    elegidos.push({ id: gana.x.c.id, local: gana.local, valorSinRecorrido: sinRecorrido(gana.x.c), valor: puntuar(gana), enFranja: false, obligatorio: !!gana.x.c.obligatorio });
     ruta = insertar(ruta, gana.local, dist);
     restantes = restantes.filter((x) => x !== gana.x);
   }
@@ -231,20 +234,23 @@ export function seleccionarPorValor(
   const elegidosIds = new Set(elegidos.map((e) => e.id));
   const franja = preparados.filter((x) => !elegidosIds.has(x.c.id) && x.franja.length)
     .map((x) => ({ x, valor: sinRecorrido(x.c) - p.penalizacionFranja }))
-    .sort((a, b) => b.valor - a.valor || a.x.c.id.localeCompare(b.x.c.id));
+    .sort((a, b) => Number(!!b.x.c.obligatorio) - Number(!!a.x.c.obligatorio) || b.valor - a.valor || a.x.c.id.localeCompare(b.x.c.id));
   let cambios = 0;
   for (const f of franja) {
     if (cambios >= p.maxCambiosFranja) break;
     const lleno = elegidos.length >= libres;
-    const peor = lleno ? elegidos.reduce((a, b) => (b.valorSinRecorrido < a.valorSinRecorrido ? b : a)) : null;
-    if (peor && f.valor <= peor.valorSinRecorrido) continue;
+    // Un obligatorio nunca sale; uno obligatorio en la franja entra aunque valga menos.
+    const reemplazables = elegidos.filter((e) => !e.obligatorio);
+    if (lleno && !reemplazables.length) continue;
+    const peor = lleno ? reemplazables.reduce((a, b) => (b.valorSinRecorrido < a.valorSinRecorrido ? b : a)) : null;
+    if (peor && !f.x.c.obligatorio && f.valor <= peor.valorSinRecorrido) continue;
     const base = elegidos.filter((e) => e !== peor);
     const local = f.x.franja.reduce((a, b) =>
       costoInsercion([centro, ...fijos, ...base.map((e) => e.local)], b, dist) < costoInsercion([centro, ...fijos, ...base.map((e) => e.local)], a, dist) ? b : a);
     const prueba = ordenExacto([...fijos, ...base.map((e) => e.local), local], dist, centro);
     if (largo([centro, ...prueba], dist) > p.topeKm + 1e-9) continue;
     if (peor) elegidos.splice(elegidos.indexOf(peor), 1);
-    elegidos.push({ id: f.x.c.id, local, valorSinRecorrido: sinRecorrido(f.x.c), valor: f.valor, enFranja: true });
+    elegidos.push({ id: f.x.c.id, local, valorSinRecorrido: sinRecorrido(f.x.c), valor: f.valor, enFranja: true, obligatorio: !!f.x.c.obligatorio });
     cambios++;
   }
 

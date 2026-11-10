@@ -138,8 +138,9 @@ export async function planificarRutas(input: PlanInput, deps: PlanDeps): Promise
     };
     const extension = (r:ReturnType<typeof evaluar>) => Math.max(0,...r.elegidos.map(c=>distanciaKm(r.h,{lat:Number(c.lat),lng:Number(c.long)})));
     // Entre centros: más visitas, después más valor y, a igual valor, menos recorrido.
+    // Primero el centro que incluye los recordatorios vencidos: el vendedor pidió volver.
     const ordenar = (a:ReturnType<typeof evaluar>,b:ReturnType<typeof evaluar>) =>
-      b.elegidos.length-a.elegidos.length || Number(b.propios>0)-Number(a.propios>0)
+      b.compuesto.obligatorios-a.compuesto.obligatorios || b.elegidos.length-a.elegidos.length || Number(b.propios>0)-Number(a.propios>0)
       || b.compuesto.valor-a.compuesto.valor || a.compuesto.km-b.compuesto.km;
     let candidatos=centros.map(h=>evaluar(h,0)).sort(ordenar);
     let mejor=candidatos[0];
