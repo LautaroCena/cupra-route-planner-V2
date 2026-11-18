@@ -9,7 +9,7 @@ export function hoyArgentina(now: Date = new Date()): string {
 
 let fechaCorte: string | null = null;
 
-/** Fecha de los datos (última venta cargada). Si está fijada, los días se miden contra ella. */
+/** Fecha contra la que se miden los días. La base devuelve hoy (fecha_corte_datos); las pruebas pueden fijar otra. */
 export function fijarFechaCorte(fecha: unknown): void {
   fechaCorte = typeof fecha === "string" && /^\d{4}-\d{2}-\d{2}/.test(fecha) ? fecha.slice(0, 10) : null;
 }

@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fijarFechaCorte, obtenerFechaCorte } from "@/lib/segmentos";
 
-/** Trae la fecha de la última venta cargada. Sin datos, los días se miden contra hoy. */
+/** Trae la fecha contra la que se miden los días: hoy, en Argentina. */
 export async function cargarFechaCorte(): Promise<string | null> {
   const { data, error } = await supabase.rpc("fecha_corte_datos" as never);
   if (error) {

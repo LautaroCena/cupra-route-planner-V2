@@ -115,6 +115,24 @@ test("el asignado es siempre el último que vendió y el recálculo no se audita
   }
 });
 
+test("los estados se miden contra hoy, no contra la última venta", async () => {
+  const { db, fallas } = await baseMigrada();
+  try {
+    assert.deepEqual(fallas, []);
+    await db.exec(`
+      INSERT INTO clientes(client_id, razon_social) VALUES ('C1', 'Uno');
+      INSERT INTO ventas_cupra(client_id, ticket, fecha_emision, codigo_producto, vendedor, tipo_comprobante) VALUES
+        ('C1', 'A1', current_date - 40, 'P', 'ANA', 'venta');
+    `);
+    await db.query("SELECT recompute_client_metrics()");
+    const { rows } = await db.query("SELECT categoria_recencia, dias_desde_ultima_compra FROM clientes WHERE client_id = 'C1'");
+    assert.equal(rows[0].categoria_recencia, "INACTIVO");
+    assert.ok(rows[0].dias_desde_ultima_compra >= 39);
+  } finally {
+    await db.close();
+  }
+});
+
 test("todas las migraciones corren desde una base vacía", async () => {
   const { db, fallas } = await baseMigrada();
   try {
