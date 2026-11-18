@@ -5,7 +5,8 @@ import { argentinaCoordinates } from "./import-values.ts";
 import { type GeocodeResult, preciseArgentinaResult, locationFields } from "./geocoding-values.ts";
 import { datosUtilesUsig, geocodificarUsig } from "./usig.ts";
 
-const sinClaveGoogle = (e: unknown) => e instanceof RequestError && e.code === "GOOGLE_KEY_MISSING";
+// Sin clave, o con la clave rechazada (API no habilitada, sin facturación, tope diario): se usa USIG.
+const googleNoDisponible = (e: unknown) => e instanceof RequestError && (e.code === "GOOGLE_KEY_MISSING" || e.code === "GOOGLE_ERROR");
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,11 +58,11 @@ export async function geocodeAddress(address: string) {
   let results: GeocodeResult[];
   try { results = await googleGeocode(new URLSearchParams({ address, components: "country:AR" })); }
   catch (error) {
-    if (!sinClaveGoogle(error)) throw error;
-    // Sin clave de Google: CABA se ubica con USIG (gratis).
+    if (!googleNoDisponible(error)) throw error;
+    // Sin Google: CABA se ubica con USIG (gratis).
     const usig = await geocodificarUsig(address).catch(() => null);
     if (usig) return usig;
-    throw new RequestError("Sin clave de Google solo se pueden ubicar direcciones de CABA con calle y altura.", 422, "NO_PRECISE_RESULT");
+    throw new RequestError("Sin Google solo se pueden ubicar direcciones de CABA con calle y altura.", 422, "NO_PRECISE_RESULT");
   }
   const valid = results.filter(r => preciseArgentinaResult(r, /\d/.test(address)));
   if (valid.length !== 1) throw new RequestError("La dirección no identifica una ubicación precisa y única. Completá calle, altura y localidad.", 422, "NO_PRECISE_RESULT");
@@ -72,9 +73,9 @@ export async function reverseGeocode(lat: number, lng: number) {
   let results: GeocodeResult[];
   try { results = await googleGeocode(new URLSearchParams({ latlng: `${lat},${lng}` })); }
   catch (error) {
-    if (!sinClaveGoogle(error)) throw error;
+    if (!googleNoDisponible(error)) throw error;
     const usig = await datosUtilesUsig(lat, lng).catch(() => null);
-    if (!usig) throw new RequestError("Sin clave de Google solo se puede identificar el barrio en CABA.", 422, "NO_NEIGHBORHOOD");
+    if (!usig) throw new RequestError("Sin Google solo se puede identificar el barrio en CABA.", 422, "NO_NEIGHBORHOOD");
     return { lat, lng, formatted_address: "", location_type: "USIG", barrio: usig.barrio, comuna: usig.comuna, ciudad: "CABA",
       provincia: "Ciudad Autónoma de Buenos Aires", postal_code: usig.postal_code, admin_area_level_2: usig.comuna,
       barrio_fallback_admin2: usig.barrio, place_id: null };

@@ -13,6 +13,7 @@ export function esMensajeTecnico(mensaje: string): boolean {
 /** Mensaje apto para mostrar. Un error de la base (objeto con código) o técnico, nunca. */
 export function mensajePublico(error: unknown, generico = MENSAJE_GENERICO): string {
   if (!(error instanceof Error)) return generico;
-  if (typeof (error as { code?: unknown }).code === "string" && /^(PGRST|\d{5}$)/.test((error as { code: string }).code)) return generico;
+  const code = (error as unknown as { code?: unknown }).code;
+  if (typeof code === "string" && /^(PGRST|\d{5}$)/.test(code)) return generico;
   return error.message && !esMensajeTecnico(error.message) ? error.message : generico;
 }
