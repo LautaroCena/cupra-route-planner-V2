@@ -36,7 +36,7 @@ import { claveOrs, matrizCaminata } from "../_shared/ors.ts";
 import { RADIO_RUTA_KM } from "../_shared/ruta.ts";
 import { basePotencial, potencial } from "../_shared/valor.ts";
 import { parametrosValidos } from "../_shared/seleccion.ts";
-import { CUPOS_POR_DEFECTO, cuposValidos, NOMBRE_TIPO, TIPOS_VISITA } from "../_shared/cupos.ts";
+import { CUPOS_POR_DEFECTO, NOMBRE_TIPO, TIPOS_VISITA } from "../_shared/cupos.ts";
 import { type CandidatoOportunidad, factorPorZona } from "../_shared/oportunidad.ts";
 import { calcularOportunidades } from "./oportunidad-servicio.ts";
 import { armarRecomendaciones, filaParaDb } from "./filas.ts";
@@ -161,8 +161,7 @@ Deno.serve(async (req) => {
     const regalos = body.regalos_empresariales;
     const estados = parseEstados(body.estados);
     // Cupos por ruta: si no vienen, los de por defecto (5 activos, 2 inactivos, 1 prospecto).
-    const cupos = body.cupos == null ? CUPOS_POR_DEFECTO : cuposValidos(body.cupos);
-    if (!cupos) return json({ error: "Los cupos tienen que ser números enteros que sumen 8." }, 400);
+    const cupos = body.cupos ?? CUPOS_POR_DEFECTO;
     const rubros = new Set<string>((Array.isArray(body.rubros) ? body.rubros : []).map(rubroKey).filter(Boolean));
     const now = new Date();
     console.log(`🔧 ${VERSION}`, { vendedores, provincia, comuna, barrio, area_id, estados: [...estados], rubros: [...rubros] });
@@ -550,7 +549,7 @@ Deno.serve(async (req) => {
     });
     const totalEsperado = plan.porVendedor.length * VISITAS_POR_DIA;
     const descripcionBase = `Se armaron ${recomendaciones.length} de ${totalEsperado} visitas`
-      + ` dentro de 1,5 km, con cupos de ${TIPOS_VISITA.filter((t) => cupos[t] > 0).map((t) => `${cupos[t]} ${NOMBRE_TIPO[t]}`).join(", ")}`
+      + ` dentro de 1,5 km, con cupos de ${TIPOS_VISITA.filter((t) => cupos[t] > 0).map((t) => `${cupos[t]} ${cupos[t] === 1 ? NOMBRE_TIPO[t].slice(0, -1) : NOMBRE_TIPO[t]}`).join(", ")}`
       + (rubros.size > 0 ? ` del rubro ${[...rubros].map((r) => r.toLowerCase()).join(", ")}` : "")
       + ".";
 

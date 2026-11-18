@@ -11,3 +11,9 @@ Deno.test("validación: rechaza tipos incorrectos y filtros manipulados antes de
     throws(() => validarSolicitud(input), SolicitudInvalida);
   }
 });
+
+Deno.test("validación: los cupos llegan al motor y tienen que sumar 8", () => {
+  assertEquals(validarSolicitud({ cupos: { ACTIVO: 3, INACTIVO: 2, PERDIDO: 2, POTENCIAL: 1 } }).cupos, { ACTIVO: 3, INACTIVO: 2, PERDIDO: 2, POTENCIAL: 1 });
+  assertEquals(validarSolicitud({}).cupos, null);
+  throws(() => validarSolicitud({ cupos: { ACTIVO: 9 } }), SolicitudInvalida);
+});

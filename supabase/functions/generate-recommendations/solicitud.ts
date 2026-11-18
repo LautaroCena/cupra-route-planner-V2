@@ -1,3 +1,5 @@
+import { type Cupos, cuposValidos } from "../_shared/cupos.ts";
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class SolicitudInvalida extends Error {}
@@ -28,7 +30,14 @@ export function validarSolicitud(raw: unknown) {
   if (body.regalos_empresariales != null && typeof body.regalos_empresariales !== "boolean") {
     throw new SolicitudInvalida("El enfoque comercial es inválido.");
   }
+  // Cupos por ruta: si no vienen, el motor usa los de por defecto.
+  let cupos: Cupos | null = null;
+  if (body.cupos != null) {
+    cupos = cuposValidos(body.cupos);
+    if (!cupos) throw new SolicitudInvalida("Los cupos tienen que ser números enteros que sumen 8.");
+  }
   return {
+    cupos,
     regalos_empresariales: body.regalos_empresariales === true,
     vendedores: lista("vendedores", 30, true), barrio: lista("barrio", 100), comuna: lista("comuna", 30),
     estados, rubros: lista("rubros", 30), area_id,
