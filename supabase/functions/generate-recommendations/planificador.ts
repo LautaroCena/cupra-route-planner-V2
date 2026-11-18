@@ -216,3 +216,15 @@ export async function planificarRutas(input: PlanInput, deps: PlanDeps): Promise
   }
   return { porVendedor, descubiertosGoogle: [...nuevos.values()] };
 }
+
+/**
+ * Revisa las rutas antes de guardar. Un vendedor sin visitas no frena a los demás
+ * (sale con aviso). Se frena si una ruta rompe el radio, o si nadie tiene visitas.
+ */
+export function revisarRutas<T extends { elegidos: { client_id: string; lat: unknown; long: unknown }[]; hotspot: AnchorPoint | null }>(porVendedor: T[]) {
+  const sinVisitas = porVendedor.filter(p => p.elegidos.length === 0);
+  const rotas = porVendedor.filter(p => p.elegidos.length > 0 && errorRuta(p.elegidos.map(c => ({
+    id: c.client_id, lat: Number(c.lat), lng: Number(c.long),
+  })), p.hotspot));
+  return { sinVisitas, rotas, frenar: rotas.length > 0 || sinVisitas.length === porVendedor.length };
+}

@@ -31,9 +31,9 @@ import {
   limpiarJustificacion,
   type ScoredCandidate,
 } from "./candidatos.ts";
-import { type PlanVendedor, planificarRutas, VISITAS_POR_DIA } from "./planificador.ts";
+import { type PlanVendedor, planificarRutas, revisarRutas, VISITAS_POR_DIA } from "./planificador.ts";
 import { claveOrs, matrizCaminata } from "../_shared/ors.ts";
-import { RADIO_RUTA_KM, errorRuta } from "../_shared/ruta.ts";
+import { RADIO_RUTA_KM } from "../_shared/ruta.ts";
 import { basePotencial, potencial } from "../_shared/valor.ts";
 import { parametrosValidos } from "../_shared/seleccion.ts";
 import { type CandidatoOportunidad, factorPorZona } from "../_shared/oportunidad.ts";
@@ -451,12 +451,11 @@ Deno.serve(async (req) => {
       console.warn("GOOGLE_MAPS_API_KEY no configurada: no se buscan prospectos nuevos.");
     }
 
-    // Hasta 8 por vendedor (menos, con aviso en la cobertura). Error solo si un vendedor
-    // queda sin visitas o algo rompe el radio.
-    const incompletas = plan.porVendedor.filter(p => errorRuta(p.elegidos.map(c => ({
-      id: c.client_id, lat: Number(c.lat), lng: Number(c.long),
-    })), p.hotspot));
-    if (incompletas.length) {
+    // Hasta 8 por vendedor (menos, con aviso en la cobertura). Un vendedor sin visitas no
+    // frena a los demás; error solo si algo rompe el radio o si nadie tiene visitas.
+    const revision = revisarRutas(plan.porVendedor);
+    if (revision.frenar) {
+      const incompletas = [...revision.rotas, ...revision.sinVisitas];
       const detalle = incompletas.map(p => `${p.vendedor.nombre}: ${p.elegidos.length}/8`).join("; ");
       console.warn("RUTAS_INCOMPLETAS", JSON.stringify(incompletas.map(p => p.cobertura)));
       return json({ code: "RUTAS_INCOMPLETAS", recomendaciones: [],
@@ -494,6 +493,9 @@ Deno.serve(async (req) => {
     const estadosTexto: Record<string, string> = { ACTIVO: "activos", INACTIVO: "inactivos", PERDIDO: "perdidos", POTENCIAL: "potenciales" };
     const avisos: string[] = [];
     if (falloOportunidad) avisos.push(falloOportunidad);
+    for (const pv of revision.sinVisitas) {
+      avisos.push(`${pv.vendedor.nombre} quedó sin visitas: no hay clientes ni prospectos a 1,5 km en esta zona. Probá con otra zona para ${pv.vendedor.nombre}.`);
+    }
     if (instrucciones_adicionales) avisos.push("Las indicaciones escritas todavía no cambian la ruta: el motor decide por valor y la IA solo puntúa oportunidades.");
     for (const pv of plan.porVendedor) for (const aviso of pv.cobertura.avisos) avisos.push(`${pv.vendedor.nombre}: ${aviso}`);
     const errorGoogle = plan.porVendedor.find((p) => p.cobertura.error_google)?.cobertura.error_google;
