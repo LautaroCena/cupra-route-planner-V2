@@ -3,6 +3,7 @@
 import { distanciaKm, type Coordenada } from "../_shared/ruta.ts";
 import { type ParametrosSeleccion, seleccionarPorValor } from "../_shared/seleccion.ts";
 import type { ScoredCandidate } from "./candidatos.ts";
+import { tipoVisita } from "../_shared/cupos.ts";
 
 export interface ComposicionPorValor {
   ids: string[];
@@ -29,7 +30,9 @@ export function componerPorValor(input: {
   unavailableIds?: ReadonlySet<string>; estados?: ReadonlySet<string>; permitirOtrosEstados?: boolean;
   parametros?: Partial<ParametrosSeleccion>; dist?: (a: Coordenada, b: Coordenada) => number;
 }): ComposicionPorValor {
-  const { clients, prospects, centro, unavailableIds = new Set<string>(), estados = new Set<string>(), permitirOtrosEstados = false } = input;
+  const { clients, prospects, centro, unavailableIds = new Set<string>(), permitirOtrosEstados = false } = input;
+  // Con cupos, el tipo de cada visita lo deciden los cupos, no el filtro de estados.
+  const estados = input.parametros?.cupos ? new Set<string>() : input.estados ?? new Set<string>();
   const elegido = (c: ScoredCandidate) => !estados.size || estados.has(c.es_prospecto ? "POTENCIAL" : c.estado_comercial);
   const candidatas = [
     ...clients.filter((c) => !unavailableIds.has(c.client_id) && (elegido(c) || permitirOtrosEstados)),
@@ -38,7 +41,7 @@ export function componerPorValor(input: {
   const porId = new Map(candidatas.map((c) => [c.client_id, c]));
   const r = seleccionarPorValor(
     centro,
-    candidatas.map((c) => ({ id: c.client_id, factores: c.factores ?? { recuperacion: null, potencial: null }, locales: c.locales!, obligatorio: !!c.revisita?.recordatorio })),
+    candidatas.map((c) => ({ id: c.client_id, factores: c.factores ?? { recuperacion: null, potencial: null }, locales: c.locales!, obligatorio: !!c.revisita?.recordatorio, tipo: tipoVisita(c) })),
     input.dist ?? distanciaKm,
     distanciaKm,
     input.parametros,

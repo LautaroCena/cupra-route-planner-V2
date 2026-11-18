@@ -198,7 +198,8 @@ const AssignorDashboard = () => {
         barrio: placesFilters.barrio,
         area_id: filters.area_id,
         max_recomendaciones: 8,
-        estados: Array.isArray(filters.estados) ? filters.estados : [],
+        estados: [],
+        cupos: filters.cupos ?? undefined,
         regalos_empresariales: filters.regalos_empresariales === true,
         rubros: Array.isArray(filters.rubros) ? filters.rubros : [],
       };

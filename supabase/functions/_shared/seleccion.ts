@@ -10,7 +10,11 @@
 // - Un cliente con varios locales entra una sola vez, en el local que menos alarga la ruta.
 // - Si no hay suficientes, se devuelven los que haya, con aviso.
 // - El orden final es el óptimo exacto (con 8 puntos es barato).
+// - Cupos por tipo (2026-11-17, ver _shared/cupos.ts): dentro de cada tipo sigue
+//   mandando el valor. Si un tipo no alcanza, se completa con prospectos; si ni así
+//   alcanza, la ruta sale con menos visitas. Un recordatorio vencido entra igual.
 import { type Factores, PESOS_POR_DEFECTO, type Pesos, valor } from "./valor.ts";
+import { NOMBRE_TIPO, TIPOS_VISITA, type TipoVisita } from "./cupos.ts";
 
 export type Punto = { lat: number; lng: number };
 export type Distancia = (a: Punto, b: Punto) => number;
@@ -23,6 +27,8 @@ export interface CandidatoRuta {
   locales: Local[];
   /** El vendedor pidió volver y la fecha llegó: entra primero si está al alcance, y no se reemplaza. */
   obligatorio?: boolean;
+  /** Tipo para los cupos (activo, inactivo, perdido o prospecto). */
+  tipo?: TipoVisita;
 }
 
 export interface ParametrosSeleccion {
@@ -42,6 +48,8 @@ export interface ParametrosSeleccion {
    */
   topeKm: number;
   pesos: Pesos;
+  /** Cuántas visitas de cada tipo. Sin cupos, se elige solo por valor. */
+  cupos?: Partial<Record<TipoVisita, number>> | null;
 }
 
 export const PARAMETROS_POR_DEFECTO: ParametrosSeleccion = {
@@ -93,6 +101,7 @@ export interface Elegido {
   valor: number;
   enFranja: boolean;
   obligatorio?: boolean;
+  tipo?: TipoVisita;
 }
 
 export interface ResultadoSeleccion {
@@ -206,8 +215,18 @@ export function seleccionarPorValor(
   const libres = Math.max(0, p.limite - fijos.length);
   const elegidos: Elegido[] = [];
   let restantes = preparados.filter((x) => x.adentro.length);
+  const cupos = p.cupos ?? null;
+  const usados = new Map<TipoVisita | undefined, number>();
+  const quedan = (t?: TipoVisita) => (t ? cupos?.[t] ?? 0 : 0) - (usados.get(t) ?? 0);
+  // Con cupos: primero los tipos con lugar (y los recordatorios vencidos); cuando no
+  // queda ninguno de esos, se completa solo con prospectos.
+  const admitidos = <T extends { x: { c: CandidatoRuta } }>(xs: T[]): T[] => {
+    if (!cupos) return xs;
+    const conLugar = xs.filter((o) => o.x.c.obligatorio || quedan(o.x.c.tipo) > 0);
+    return conLugar.length ? conLugar : xs.filter((o) => o.x.c.tipo === "POTENCIAL");
+  };
   while (elegidos.length < libres && restantes.length) {
-    const opciones = restantes.map((x) => {
+    const todas = restantes.map((x) => {
       let local = x.adentro[0], extra = Infinity;
       for (const l of x.adentro) {
         const e = costoInsercion(ruta, l, dist);
@@ -215,16 +234,19 @@ export function seleccionarPorValor(
       }
       return { x, local, extra };
     }).filter((o) => largo(ruta, dist) + o.extra <= p.topeKm + 1e-9);
-    if (!opciones.length) {
+    const opciones = admitidos(todas);
+    if (!todas.length) {
       if (Number.isFinite(p.topeKm)) avisos.push(`El tope de ${p.topeKm} km no deja sumar más visitas.`);
       break;
     }
+    if (!opciones.length) break;
     const maxExtra = Math.max(...opciones.map((o) => o.extra));
     const puntuar = (o: typeof opciones[number]) =>
       valor({ ...o.x.c.factores, recorrido: maxExtra > 0 ? 1 - o.extra / maxExtra : 1 }, p.pesos);
     opciones.sort((a, b) => Number(!!b.x.c.obligatorio) - Number(!!a.x.c.obligatorio) || puntuar(b) - puntuar(a) || a.x.c.id.localeCompare(b.x.c.id));
     const gana = opciones[0];
-    elegidos.push({ id: gana.x.c.id, local: gana.local, valorSinRecorrido: sinRecorrido(gana.x.c), valor: puntuar(gana), enFranja: false, obligatorio: !!gana.x.c.obligatorio });
+    elegidos.push({ id: gana.x.c.id, local: gana.local, valorSinRecorrido: sinRecorrido(gana.x.c), valor: puntuar(gana), enFranja: false, obligatorio: !!gana.x.c.obligatorio, tipo: gana.x.c.tipo });
+    usados.set(gana.x.c.tipo, (usados.get(gana.x.c.tipo) ?? 0) + 1);
     ruta = insertar(ruta, gana.local, dist);
     restantes = restantes.filter((x) => x !== gana.x);
   }
@@ -240,7 +262,11 @@ export function seleccionarPorValor(
     if (cambios >= p.maxCambiosFranja) break;
     const lleno = elegidos.length >= libres;
     // Un obligatorio nunca sale; uno obligatorio en la franja entra aunque valga menos.
-    const reemplazables = elegidos.filter((e) => !e.obligatorio);
+    // Con cupos, solo reemplaza a uno de su mismo tipo, o completa un lugar si su tipo
+    // tiene cupo o es un prospecto.
+    const mismoTipo = (e: Elegido) => !cupos || !!f.x.c.obligatorio || e.tipo === f.x.c.tipo;
+    const reemplazables = elegidos.filter((e) => !e.obligatorio && mismoTipo(e));
+    if (!lleno && cupos && !f.x.c.obligatorio && quedan(f.x.c.tipo) <= 0 && f.x.c.tipo !== "POTENCIAL") continue;
     if (lleno && !reemplazables.length) continue;
     const peor = lleno ? reemplazables.reduce((a, b) => (b.valorSinRecorrido < a.valorSinRecorrido ? b : a)) : null;
     if (peor && !f.x.c.obligatorio && f.valor <= peor.valorSinRecorrido) continue;
@@ -249,11 +275,20 @@ export function seleccionarPorValor(
       costoInsercion([centro, ...fijos, ...base.map((e) => e.local)], b, dist) < costoInsercion([centro, ...fijos, ...base.map((e) => e.local)], a, dist) ? b : a);
     const prueba = ordenExacto([...fijos, ...base.map((e) => e.local), local], dist, centro);
     if (largo([centro, ...prueba], dist) > p.topeKm + 1e-9) continue;
-    if (peor) elegidos.splice(elegidos.indexOf(peor), 1);
-    elegidos.push({ id: f.x.c.id, local, valorSinRecorrido: sinRecorrido(f.x.c), valor: f.valor, enFranja: true, obligatorio: !!f.x.c.obligatorio });
+    if (peor) { elegidos.splice(elegidos.indexOf(peor), 1); usados.set(peor.tipo, (usados.get(peor.tipo) ?? 1) - 1); }
+    elegidos.push({ id: f.x.c.id, local, valorSinRecorrido: sinRecorrido(f.x.c), valor: f.valor, enFranja: true, obligatorio: !!f.x.c.obligatorio, tipo: f.x.c.tipo });
+    usados.set(f.x.c.tipo, (usados.get(f.x.c.tipo) ?? 0) + 1);
     cambios++;
   }
 
+  if (cupos) {
+    const faltan = TIPOS_VISITA.filter((t) => t !== "POTENCIAL" && quedan(t) > 0);
+    const extra = (usados.get("POTENCIAL") ?? 0) - (cupos.POTENCIAL ?? 0);
+    if (faltan.length) {
+      const detalle = faltan.map((t) => `${cupos[t]} ${NOMBRE_TIPO[t]} y hay ${usados.get(t) ?? 0}`).join("; ");
+      avisos.push(`No alcanzaron los cupos a 1,5 km (pediste ${detalle})${extra > 0 ? `; se completó con ${extra} prospecto${extra === 1 ? "" : "s"}` : ""}. Si querés más, cambiá la zona o los cupos.`);
+    }
+  }
   if (elegidos.length + fijos.length < p.limite) {
     avisos.push(`Hay ${elegidos.length + fijos.length} visitas que valen la pena en la zona; no se completan las ${p.limite}.`);
   }

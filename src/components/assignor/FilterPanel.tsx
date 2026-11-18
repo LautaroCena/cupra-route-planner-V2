@@ -1,5 +1,7 @@
 import { EnfoqueRegalos } from "@/components/prospectos/EnfoqueRegalos";
 import { candidatoRegalos } from "../../../supabase/functions/_shared/prospect-categories";
+import { CUPOS_POR_DEFECTO, NOMBRE_TIPO, TIPOS_VISITA, VISITAS_POR_RUTA, type Cupos } from "../../../supabase/functions/_shared/cupos";
+import { Input } from "@/components/ui/input";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { toTitleCase } from "@/lib/format";
 import { GEO_PROVINCIAS, geoComunas, geoBarrios } from "@/data/geoBuenosAires";
 import { SALES_PROFILE_OR_FILTER } from "@/lib/roles";
-import { ESTADOS } from "@/lib/segmentos";
 import { useRubros } from "@/hooks/useRubros";
 import { useDraftState, useAssignmentDraftStore } from "@/hooks/useAssignmentDraft";
 
@@ -42,8 +43,14 @@ const FilterPanel = ({
   const [areas, setAreas] = useState<Area[]>([]);
   const [selectedArea, setSelectedArea] = useDraftState<string>("filtros", "selectedArea", 'none');
   const [isLoadingAreas, setIsLoadingAreas] = useState(true);
-  // Qué tipo de visitas pedir: vacío = todos los estados, sin cupos.
-  const [selectedEstados, setSelectedEstados] = useDraftState<string[]>("filtros", "selectedEstados", []);
+  // Cupos por ruta: por defecto 5 activos, 2 inactivos, 1 prospecto. Siempre suman 8.
+  const [cupos, setCupos] = useDraftState<Cupos>("filtros", "cupos", CUPOS_POR_DEFECTO);
+  const cuposSuman = TIPOS_VISITA.reduce((t, k) => t + (cupos[k] ?? 0), 0);
+  const cuposOk = () => {
+    if (cuposSuman === VISITAS_POR_RUTA) return true;
+    toast({ variant: "destructive", title: "Revisá los cupos", description: `Los cupos tienen que sumar ${VISITAS_POR_RUTA}; ahora suman ${cuposSuman}.` });
+    return false;
+  };
   const [selectedRubros, setSelectedRubros] = useDraftState<string[]>("filtros", "selectedRubros", []);
   const [regalos, setRegalos] = useDraftState("filtros", "regalosEmpresariales", false);
   const { rubros: rubrosOpciones, loading: loadingRubros } = useRubros();
@@ -147,8 +154,9 @@ const FilterPanel = ({
     }
 
 
+    if (!cuposOk()) return;
     onRequestRecommendations(
-      { area_id: selectedArea, cantidad_vendedores: ids.length, estados: selectedEstados, rubros: selectedRubros, regalos_empresariales: regalos },
+      { area_id: selectedArea, cantidad_vendedores: ids.length, cupos, rubros: selectedRubros, regalos_empresariales: regalos },
       { ids, nombres },
       { comuna: null, barrio: area.barrios.length > 0 ? area.barrios : null, provincia: null }
     );
@@ -157,8 +165,9 @@ const FilterPanel = ({
   const handleSubmitCustom = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedVendedores.length === 0) { toast({ variant: "destructive", title: "Error", description: "Seleccioná al menos un vendedor" }); return; }
+    if (!cuposOk()) return;
     const nombres = selectedVendedores.map(id => vendedores.find(v => v.id === id)?.nombre || "Vendedor");
-    onRequestRecommendations({ cantidad_vendedores: selectedVendedores.length, estados: selectedEstados, rubros: selectedRubros, regalos_empresariales: regalos }, { ids: selectedVendedores, nombres }, { comuna: selectedComuna.length > 0 ? selectedComuna : null, barrio: selectedBarrio.length > 0 ? selectedBarrio : null, provincia: selectedProvincia !== 'all' ? selectedProvincia : null });
+    onRequestRecommendations({ cantidad_vendedores: selectedVendedores.length, cupos, rubros: selectedRubros, regalos_empresariales: regalos }, { ids: selectedVendedores, nombres }, { comuna: selectedComuna.length > 0 ? selectedComuna : null, barrio: selectedBarrio.length > 0 ? selectedBarrio : null, provincia: selectedProvincia !== 'all' ? selectedProvincia : null });
   };
 
   const selectedAreaData = areas.find(a => a.id === selectedArea);
@@ -274,8 +283,8 @@ const FilterPanel = ({
           <VisitTypeFilters
             regalos={regalos}
             onRegalosChange={value => { setRegalos(value); setSelectedRubros([]); }}
-            estados={selectedEstados}
-            onEstadosChange={setSelectedEstados}
+            cupos={cupos}
+            onCuposChange={setCupos}
             rubros={selectedRubros}
             onRubrosChange={setSelectedRubros}
             rubrosOpciones={rubrosOpciones}
@@ -358,8 +367,8 @@ const FilterPanel = ({
           <VisitTypeFilters
             regalos={regalos}
             onRegalosChange={value => { setRegalos(value); setSelectedRubros([]); }}
-            estados={selectedEstados}
-            onEstadosChange={setSelectedEstados}
+            cupos={cupos}
+            onCuposChange={setCupos}
             rubros={selectedRubros}
             onRubrosChange={setSelectedRubros}
             rubrosOpciones={rubrosOpciones}
@@ -394,45 +403,59 @@ const FilterPanel = ({
   );
 };
 
-function VisitTypeFilters({ regalos, onRegalosChange, estados, onEstadosChange, rubros, onRubrosChange, rubrosOpciones, loadingRubros }: {
+function VisitTypeFilters({ regalos, onRegalosChange, cupos, onCuposChange, rubros, onRubrosChange, rubrosOpciones, loadingRubros }: {
   regalos: boolean;
   onRegalosChange: (value: boolean) => void;
-  estados: string[];
-  onEstadosChange: (v: string[]) => void;
+  cupos: Cupos;
+  onCuposChange: (v: Cupos) => void;
   rubros: string[];
   onRubrosChange: (v: string[]) => void;
   rubrosOpciones: { value: string; label: string }[];
   loadingRubros: boolean;
 }) {
+  const suma = TIPOS_VISITA.reduce((t, k) => t + (cupos[k] ?? 0), 0);
+  const esDefecto = TIPOS_VISITA.every((k) => (cupos[k] ?? 0) === CUPOS_POR_DEFECTO[k]);
+  const cambiar = (k: keyof Cupos, texto: string) => {
+    const n = Math.max(0, Math.min(VISITAS_POR_RUTA, Math.floor(Number(texto) || 0)));
+    onCuposChange({ ...CUPOS_POR_DEFECTO, ...cupos, [k]: n });
+  };
   return (
     <div className="space-y-3 rounded-xl border border-border/40 p-4">
       <EnfoqueRegalos checked={regalos} onChange={onRegalosChange} />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Estado de los clientes a visitar</Label>
-          <MultiSelect
-            options={ESTADOS.map((e) => ({ value: e.value, label: e.plural }))}
-            selected={estados}
-            onChange={onEstadosChange}
-            placeholder="Todos los estados"
-            className="w-full"
-          />
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs text-muted-foreground">Visitas de cada tipo por ruta</Label>
+          {!esDefecto && (
+            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onCuposChange(CUPOS_POR_DEFECTO)}>
+              Volver a 5-2-1
+            </Button>
+          )}
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Rubro</Label>
-          <MultiSelect
-            options={regalos ? rubrosOpciones.filter(r => candidatoRegalos({ rubro: r.value })) : rubrosOpciones}
-            selected={rubros}
-            onChange={onRubrosChange}
-            placeholder={loadingRubros ? "Cargando rubros..." : "Todos los rubros"}
-            className="w-full"
-          />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {TIPOS_VISITA.map((k) => (
+            <label key={k} className="space-y-1">
+              <span className="block text-xs capitalize">{NOMBRE_TIPO[k]}</span>
+              <Input type="number" inputMode="numeric" min={0} max={VISITAS_POR_RUTA} step={1} value={cupos[k] ?? 0}
+                onChange={(e) => cambiar(k, e.target.value)} className="h-8" aria-label={`Cupo de ${NOMBRE_TIPO[k]}`} />
+            </label>
+          ))}
         </div>
+        <p className={`text-xs ${suma === VISITAS_POR_RUTA ? "text-muted-foreground" : "text-destructive font-medium"}`}>
+          Suman {suma} de {VISITAS_POR_RUTA}{suma === VISITAS_POR_RUTA ? "." : `: tienen que sumar ${VISITAS_POR_RUTA}.`}
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Rubro</Label>
+        <MultiSelect
+          options={regalos ? rubrosOpciones.filter(r => candidatoRegalos({ rubro: r.value })) : rubrosOpciones}
+          selected={rubros}
+          onChange={onRubrosChange}
+          placeholder={loadingRubros ? "Cargando rubros..." : "Todos los rubros"}
+          className="w-full"
+        />
       </div>
       <p className="text-xs text-muted-foreground leading-relaxed">
-        {estados.length === 0
-          ? "Hasta 8 visitas por vendedor dentro de 1,5 km, elegidas por valor. Se prioriza la cartera y se completa con prospectos, sin cupos por estado."
-          : `Objetivo: hasta 8 visitas por vendedor, priorizando ${ESTADOS.filter((e) => estados.includes(e.value)).map((e) => e.plural.toLowerCase()).join(" y ")}. Si no alcanzan, se proponen otras visitas disponibles y se informa la sustitución.`}
+        Hasta 8 visitas por vendedor dentro de 1,5 km. Dentro de cada tipo se elige por valor. Si un tipo no alcanza, se completa con prospectos; si ni así alcanza, la ruta sale con menos visitas y se avisa dónde faltó.
         {rubros.length > 0 && " Solo se incluyen clientes y prospectos de los rubros elegidos."}
       </p>
     </div>
