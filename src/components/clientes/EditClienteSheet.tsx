@@ -260,14 +260,8 @@ export const EditClienteSheet = ({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Una venta de otro vendedor no cambia el asignado. Se cambia solo desde acá.
+                Con cada carga de ventas pasa a ser el último vendedor que le vendió. Un cambio hecho acá dura hasta la próxima carga.
               </p>
-              {cliente.vendedor_sugerido && (
-                <p className="text-xs text-amber-600">
-                  {cliente.vendedor_sugerido} le vendió varias veces en los últimos 90 días. Si ahora lo atiende
-                  {" "}{cliente.vendedor_sugerido}, cambiá el asignado.
-                </p>
-              )}
             </div>
           </div>
 

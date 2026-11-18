@@ -1,6 +1,6 @@
 import { allClients, beginImport } from "../_shared/import-batch.ts";
 import { currencyNumber, coordinateNumber, importDate, joinStreet, argentinaCoordinates, repararCodificacion } from "../_shared/import-values.ts";
-import { vendedorInicial, type VentaVendedor } from "../_shared/vendedor-asignado.ts";
+import { ultimoVendedor, type VentaVendedor } from "../_shared/vendedor-asignado.ts";
 import { agruparLocales, nombresAlternativos, posiblesDuplicados } from "../_shared/etl/locales.ts";
 import { clasificarDocumento, limpiarSinDato, mensajeFreno, MOTIVOS_RECHAZO, revisarVentas, type MotivoRechazo } from "../_shared/etl/ventas.ts";
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
@@ -1036,9 +1036,9 @@ Deno.serve(async (req) => {
         barrio_principal: mode(c.barrios), ciudad_principal: mode(c.ciudades),
         provincia_principal: mode(c.provincias), direccion_principal: mode(c.direcciones),
         vendedor_principal: mode(c.vendedores),
-        // Asignado inicial: el que más le vendió en sus últimos meses de compras. Solo
-        // se usa si el cliente es nuevo; guardar_importacion no pisa un asignado existente.
-        vendedor_actual: vendedorInicial(c.ventas_vendedor),
+        // Asignado: el último que le vendió. recompute_client_metrics lo vuelve a calcular
+        // con todas las ventas de la base después de cada carga.
+        vendedor_actual: ultimoVendedor(c.ventas_vendedor),
         productos_comprados: Array.from(c.productos),
         todos_barrios: Array.from(c.barrios), todas_ciudades: Array.from(c.ciudades),
         todas_direcciones: Array.from(c.direcciones), todos_vendedores: Array.from(c.vendedores),
