@@ -25,6 +25,7 @@ Las pruebas usan datos sintéticos. GitHub Actions ejecuta la misma validación.
 
 ## Documentación
 
+- [Guía de puesta en marcha, paso a paso](./GUIA_PUESTA_EN_MARCHA.md)
 - [Funcionamiento y reglas comerciales](./DOCUMENTACION_FUNCIONAL.md)
 - [Cambios desde la versión de Lovable](./CAMBIOS.md)
 - [Pendientes de la entrega](./PENDIENTES.md)
