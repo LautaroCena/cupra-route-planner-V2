@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { cargarFechaCorte } from "@/lib/fechaCorte";
+import { cargarFechaCorte, obtenerUltimaVenta } from "@/lib/fechaCorte";
 import Auth from "./pages/Auth";
 
 /**
@@ -51,7 +51,7 @@ const FechaDeDatos = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_evento, sesion) => {
       if (!sesion) return;
       setTimeout(async () => {
-        const fecha = await cargarFechaCorte();
+        const fecha = `${await cargarFechaCorte()}|${obtenerUltimaVenta()}`;
         if (fecha !== ultima.current) {
           ultima.current = fecha;
           setVersion((v) => v + 1);

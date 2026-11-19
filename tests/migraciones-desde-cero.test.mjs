@@ -128,6 +128,9 @@ test("los estados se miden contra hoy, no contra la última venta", async () => 
     const { rows } = await db.query("SELECT categoria_recencia, dias_desde_ultima_compra FROM clientes WHERE client_id = 'C1'");
     assert.equal(rows[0].categoria_recencia, "INACTIVO");
     assert.ok(rows[0].dias_desde_ultima_compra >= 39);
+    // El aviso de datos atrasados usa la fecha de la última venta, no la de hoy.
+    const { rows: [u] } = await db.query("SELECT fecha_ultima_venta() = current_date - 40 AS ok");
+    assert.equal(u.ok, true);
   } finally {
     await db.close();
   }
