@@ -2,34 +2,42 @@
 
 React 18, TypeScript y Vite componen la interfaz. Supabase aporta Auth,
 PostgreSQL con RLS y Edge Functions en Deno. Vercel publica la aplicación
-desde GitHub. Google Maps resuelve lugares, geocodificación y
-recorridos; la IA redacta explicaciones a partir de resultados calculados.
+desde GitHub. Google Maps aporta el mapa y la búsqueda de prospectos; cuando no
+está, hay respaldos gratuitos: mapa Leaflet/OpenStreetMap, USIG para direcciones
+de CABA, OpenRouteService para caminatas y Overpass (OpenStreetMap) para
+prospectos. Gemini puntúa solo la Oportunidad; el resto lo calcula el código.
 
 ## Módulos principales
 
 | Ubicación | Responsabilidad |
 |---|---|
-| `supabase/functions/generate-recommendations/` | Candidatos, prioridad comercial y planificación por vendedor. |
-| `supabase/functions/_shared/prospect-categories.ts` | Catálogo compartido de rubros, tipos Google y afinidad con regalos empresariales. |
-| `supabase/functions/_shared/compact-route.ts` | Selección por cercanía y orden sugerido compartidos por motor y mapa. |
-| `supabase/functions/complete-map-route/` | Completar selección manual conservando puntos fijos. |
-| `supabase/functions/walking-route/` | Resolver ocho IDs contra la base y medir el recorrido peatonal. |
-| `supabase/functions/review-prospect/` | Revisión, enriquecimiento y unificación de fichas. |
-| `src/lib/asignaciones.ts` | Acceso a operaciones transaccionales de asignación. |
-| `src/lib/catalogoVisitas.ts` | Catálogo mínimo paginado para búsqueda compartida. |
-| `src/lib/assignmentDrafts.ts` | Persistencia de borradores por usuario, ámbito y campo. |
+| `supabase/functions/generate-recommendations/` | Generación de rutas: candidatos (`candidatos.ts`), planificación por vendedor (`planificador.ts`), filas para la base (`filas.ts`). |
+| `supabase/functions/_shared/seleccion.ts` | Selección por valor: radio, franja, cupos, recordatorios obligatorios, orden exacto y alternativas. La usan el motor y el mapa. |
+| `supabase/functions/_shared/valor.ts` | Puntaje de 0 a 100 y pesos por defecto (recorrido 35, recuperación 25, oportunidad 25, potencial 15). |
+| `supabase/functions/_shared/cupos.ts` | Cupos por tipo de visita (5-2-0-1 por defecto, suman 8). |
+| `supabase/functions/_shared/reglas.ts` | Exclusiones por comentario, pausas después de visitar, resolución de vendedores. |
+| `supabase/functions/_shared/estado-comercial.ts` | Estados activo / inactivo / perdido (30 y 90 días, contra hoy). |
+| `supabase/functions/_shared/vendedor-asignado.ts` | Regla del último vendedor (también en SQL, `ultimo_vendedor`). |
+| `supabase/functions/_shared/oportunidad.ts` | Oportunidad por IA comprobada por código. |
+| `supabase/functions/_shared/location-service.ts`, `usig.ts` | Ubicar direcciones: Google y, si no, USIG. |
+| `supabase/functions/_shared/ors.ts`, `walking-route.ts` | Caminata por calles: Google y, si no, OpenRouteService. |
+| `supabase/functions/_shared/osm.ts`, `prospectos-osm/` | Prospectos de OpenStreetMap por barrio de CABA. |
+| `supabase/functions/complete-map-route/` | Completar una ruta armada a mano en el mapa. |
+| `supabase/functions/process-ventas-excel/`, `_shared/etl/` | Carga del Excel de ventas. |
+| `src/lib/mapFallback.ts` | Mapa de respaldo con la misma interfaz que `google.maps`. |
+| `src/lib/assignmentDrafts.ts` | Borradores por usuario en el navegador. |
 
 ## Contrato de rutas
 
-Una ruta completa tiene ocho IDs distintos y coordenadas válidas, todos a un
-máximo de 1,5 km de su centro. La selección busca el menor radio suficiente;
-la cercanía precede a la prioridad comercial para completar alrededor de una
-referencia. Las preferencias generadas por IA no pueden ampliar la ruta.
+Una ruta tiene **hasta ocho** destinos distintos con coordenadas válidas, todos a
+1,5 km o menos del centro, salvo uno solo entre 1,5 y 1,6 km. Se elige por valor;
+la distancia entra como el factor recorrido. Con cupos, dentro de cada tipo manda
+el valor; si un tipo no alcanza se completa con prospectos. Los recordatorios
+vencidos del vendedor entran aunque su tipo no tenga cupo. El orden final es el
+óptimo exacto. Motor, mapa y base (`guardar_ruta_mapa`) aplican la misma regla de radio y franja.
 
-El mapa y el motor usan el mismo selector. La asignación manual conserva los
-puntos que eligió el operador. La medición a pie optimiza el orden por proximidad
-y consulta las calles; devuelve `orden`, `metros`, `minutos`, `avisos`,
-`atribucion` y `verificada`. Un fallo devuelve medidas nulas y un aviso explícito.
+Los parámetros se leen de `motor_config` y se validan al leer: un valor sin sentido
+vuelve al de por defecto.
 
 ## Prospección empresarial
 

@@ -2,16 +2,11 @@
 
 Aplicación para preparar, asignar y registrar visitas comerciales de CUPRA.
 
-El objetivo es **ocho comercios cercanos por vendedor**, combinando clientes y
-prospectos. El motor compara zonas compactas, conserva una referencia comercial
-cuando existe y busca vecinos en Google incluso cuando ya hay ocho clientes
-más dispersos. El radio máximo es **1,5 km desde el centro**; la interfaz permite
-consultar por separado los kilómetros y minutos del recorrido a pie.
-
-Los vendedores ven sus pendientes y pueden tomar visitas desde un catálogo
-compartido. La operación conserva el historial y avisa a los asignadores.
-Los borradores se guardan por usuario en el navegador. Los datos comerciales
-confirmados se guardan en Supabase.
+Arma cada día una ruta **a pie** de hasta **8 visitas** por vendedor, dentro de
+**1,5 km**, eligiendo por valor los clientes y prospectos que más conviene visitar,
+con cupos por tipo (5 activos, 2 inactivos y 1 prospecto por defecto). El
+asignador revisa y confirma; el vendedor ve sus visitas en orden y registra lo que
+pasó, y eso vuelve al motor.
 
 ## Desarrollo
 
@@ -31,6 +26,8 @@ Las pruebas usan datos sintéticos. GitHub Actions ejecuta la misma validación.
 ## Documentación
 
 - [Funcionamiento y reglas comerciales](./DOCUMENTACION_FUNCIONAL.md)
+- [Cambios desde la versión de Lovable](./CAMBIOS.md)
+- [Pendientes de la entrega](./PENDIENTES.md)
 - [Arquitectura y contratos](./DOCUMENTACION_TECNICA.md)
 - [Publicación y verificación](./DESPLIEGUE.md)
 

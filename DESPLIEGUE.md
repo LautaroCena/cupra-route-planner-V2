@@ -16,7 +16,7 @@ Requiere la CLI de Supabase (`npx supabase`).
    ```
 3. Cargar los secretos:
    ```bash
-   npx supabase secrets set GOOGLE_MAPS_API_KEY=<clave> GEMINI_API_KEY=<clave>
+   npx supabase secrets set GOOGLE_MAPS_API_KEY=<clave> GEMINI_API_KEY=<clave> ORS_API_KEY=<clave>
    ```
 4. En Vercel, importar el repositorio y cargar `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
    y `VITE_GOOGLE_MAPS_API_KEY`, de tipo **Config**: Vercel no deja guardar variables `VITE_` como Secret.
@@ -27,15 +27,24 @@ Requiere la CLI de Supabase (`npx supabase`).
    UPDATE public.profiles SET rol = 'administrador', activo = true WHERE user_id = '<user_id>';
    ```
 
-Sin `GOOGLE_MAPS_API_KEY` no se busca en Google ni se ubican direcciones. Sin `GEMINI_API_KEY`
-se usan los textos armados por código. Sin la clave de navegador se usa el mapa de respaldo.
+Todas las claves son opcionales; sin ellas la app usa respaldos:
+- Sin `GOOGLE_MAPS_API_KEY` (o con la clave rechazada): las direcciones de CABA se ubican con USIG
+  y no se buscan prospectos en Google (queda "Traer de OpenStreetMap").
+- Sin `ORS_API_KEY`: la caminata se mide con Google o se estima en línea recta.
+- Sin `GEMINI_API_KEY`: la Oportunidad queda neutra.
+- Sin `VITE_GOOGLE_MAPS_API_KEY`: se usa el mapa de respaldo (OpenStreetMap).
+
+Las claves de Google solo funcionan si el proyecto de Google Cloud tiene **facturación vinculada**.
+Ver [PENDIENTES.md](./PENDIENTES.md).
 
 ## Claves
 | Variable | Dónde | Uso |
 |---|---|---|
-| `GOOGLE_MAPS_API_KEY` | Secreto de Supabase | Places, Geocoding y Routes |
-| `GEMINI_API_KEY` | Secreto de Supabase | IA |
-| `VITE_GOOGLE_MAPS_API_KEY` | Vercel | Mapa en el navegador. Restringirla por dominio |
+| `GOOGLE_MAPS_API_KEY` | Secreto de Supabase | Places (New) para prospectos. Si además se habilitan Geocoding y Routes, los usa antes que los respaldos |
+| `GEMINI_API_KEY` | Secreto de Supabase | IA (Oportunidad, briefing, extracción de comentarios) |
+| `GEMINI_MODEL` | Secreto de Supabase (opcional) | Cambiar el modelo de Gemini sin desplegar |
+| `ORS_API_KEY` | Secreto de Supabase | Distancias a pie con OpenRouteService (cuenta gratuita) |
+| `VITE_GOOGLE_MAPS_API_KEY` | Vercel | Mapa en el navegador. Restringirla por dominio. Después de cargarla, volver a publicar |
 
 Las claves de servidor nunca llevan el prefijo `VITE_`.
 
