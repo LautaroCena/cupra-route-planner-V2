@@ -20,6 +20,27 @@ Tiempo estimado: entre 1 y 2 horas, sin contar la espera por la facturación de 
 Todas las claves son **opcionales**: si falta una, la app usa un respaldo gratuito y sigue
 funcionando. Lo único obligatorio es Supabase y Vercel.
 
+## Cuentas: de quién es cada cosa hoy
+
+La demo que se les mostró corre en **cuentas del desarrollador**. Para que el sistema sea
+100% de CUPRA, **cada pieza tiene que quedar en una cuenta de CUPRA**: esta guía las crea
+nuevas en las cuentas de ustedes (es más limpio que transferir las de la demo, que solo tienen
+datos de prueba).
+
+| Pieza | Hoy está en | Qué hacer |
+|---|---|---|
+| Código (GitHub) | Cuenta del desarrollador, repositorio privado | Paso 1: llevarlo a un repositorio propio |
+| Base y funciones (Supabase) | Proyecto del desarrollador, con datos de prueba | Pasos 2 y 3: crear uno propio. **No hace falta migrar nada de la demo** |
+| Pantalla (Vercel) | Proyecto del desarrollador | Paso 5: crear uno propio conectado al repositorio de ustedes |
+| Google Maps (Google Cloud) | Proyecto `cupra-wines`, de la cuenta de Carolina | Paso 8: ya es de CUPRA. Falta la facturación |
+| IA (Gemini) | Clave de la cuenta del desarrollador | Paso 7: crear una clave propia, con facturación |
+| Caminatas (OpenRouteService) | Clave de la cuenta del desarrollador | Paso 7: crear una clave propia (es gratis) |
+| Direcciones de CABA (USIG) | Servicio público del Gobierno de la Ciudad | No necesita cuenta ni clave |
+
+Las claves de la demo **no se reutilizan**: cada una se crea de nuevo en la cuenta de ustedes
+y se carga en su Supabase y su Vercel. Al final hay un apartado con lo que el desarrollador
+da de baja de su lado.
+
 ## Qué necesitás antes de empezar
 
 - Cuenta de **GitHub**, de **Supabase** (supabase.com), de **Vercel** (vercel.com) y de
@@ -150,7 +171,12 @@ Una **clave** es la contraseña que la app usa para pedirle cosas a Google. Vive
 **proyecto de Google Cloud**. **Google no atiende ningún pedido de Maps si el proyecto no
 tiene una tarjeta vinculada**, aunque el uso sea gratis. Es el paso que más se olvida.
 
-1. En console.cloud.google.com → creá un proyecto (o usá `cupra-wines` si ya existe).
+1. En console.cloud.google.com → usá el proyecto **`cupra-wines`**, que ya es de CUPRA, o creá uno
+   nuevo. En `cupra-wines` ya están creadas las dos claves del punto 8.3 (con los nombres
+   "CUPRA servidor (Supabase)" y "CUPRA mapa (Vercel)") y activadas las dos APIs del 8.2: si
+   usan ese proyecto, saltear a 8.1 punto 2 y a 8.4. La clave del mapa está restringida a la
+   dirección de Vercel **del desarrollador**: hay que **cambiarla por la de ustedes**
+   (*Credenciales → la clave → Restricciones de sitios web*).
 2. **Facturación → Vincular una cuenta de facturación** y elegí la cuenta con la tarjeta.
 3. En *Facturación → Presupuestos y alertas* poné un aviso, por ejemplo USD 10 por mes.
 
@@ -227,6 +253,29 @@ Las pruebas automáticas se corren con `npm run check`.
 | "Traer de OpenStreetMap" falla | Los servidores públicos de OpenStreetMap se caen seguido | Reintentar más tarde |
 
 Los errores del servidor están en Supabase → **Edge Functions → Logs**.
+
+## Cierre: qué se desconecta de la cuenta del desarrollador
+
+Cuando todo anda en las cuentas de ustedes (paso 10 completo), se cierra lo anterior para que
+nada dependa de una persona:
+
+**Lo hace el desarrollador**
+- Quita a las cuentas de CUPRA del acceso a su repositorio y lo archiva o lo borra.
+- Borra su proyecto de Supabase de demo y su proyecto de Vercel (o los pausa).
+- Da de baja su clave de Gemini y su clave de OpenRouteService.
+- Se retira del proyecto de Google Cloud `cupra-wines` (*IAM y administración → Quitar acceso*).
+
+**Lo hace CUPRA**
+- Revisa en *IAM y administración* de `cupra-wines` quién tiene acceso y deja solo a personas
+  de la empresa.
+- Da de baja las **dos claves viejas de Google** que quedaron en el historial del repositorio
+  original (empiezan con `AIzaSyDqu` y `AIzaSyBmv`). Siguen visibles en cualquier copia del
+  historial.
+- Confirma que el repositorio nuevo es **privado**.
+- Guarda las claves en un gestor de contraseñas de la empresa, no en chats ni mails.
+
+**Qué pasa si no se hace:** nada se rompe, pero la app de la demo sigue existiendo en cuentas
+ajenas y sus claves siguen activas. Conviene cerrarlo cuando ya se comprobó que lo nuevo anda.
 
 ## Mantenimiento
 
